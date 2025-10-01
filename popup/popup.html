@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Read Aloud</title>
+  <link rel="stylesheet" type="text/css" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="main-controls">
+        <button id="play-pause">Play</button>
+        <button id="stop">Stop</button>
+    </div>
+    <div class="control speed-control">
+      <!-- MODIFICATION: Added a span to display the current speed value -->
+      <label for="rate">Speed: <span id="rate-value">1.0x</span></label>
+      <div class="speed-slider">
+        <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1">
+        <div class="speed-marks">
+          <span>0.5x</span>
+          <span>1x</span>
+          <span>1.5x</span>
+          <span>2x</span>
+        </div>
+      </div>
+    </div>
+    <div class="control">
+      <label for="voices">Voice:</label>
+      <select id="voices"></select>
+    </div>
+  </div>
+  <script src="../scripts/popup.js"></script>
+</body>
+</html>

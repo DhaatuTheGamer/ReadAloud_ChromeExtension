@@ -1,0 +1,38 @@
+
+{
+  "manifest_version": 3,
+  "name": "Read Aloud",
+  "version": "3.1.0",
+  "description": "A text-to-speech extension that reads web page content aloud with persistent playback.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["styles/style.css"]
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tts"
+  ],
+  "background": {
+    "service_worker": "scripts/background.js"
+  },
+  "commands": {
+    "toggle-play-pause": {
+      "suggested_key": {
+        "default": "Alt+Shift+P"
+      },
+      "description": "Toggle play/pause"
+    }
+  }
+}
