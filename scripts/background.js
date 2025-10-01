@@ -96,15 +96,6 @@ function speak() {
 }
 
 function play(text) {
-  state.playbackState = 'playing';
-
-  // If we are currently paused, just resume.
-  if (state.playbackState === 'paused') {
-    chrome.tts.resume();
-    sendResponse(state);
-    return;
-  }
-
   // If new text is provided, or if we're starting from a fully stopped state,
   // reset and begin playback from the start.
   if (text) {
@@ -113,15 +104,24 @@ function play(text) {
     state.chunkIndex = 0;
   }
 
+  state.playbackState = 'playing';
+
   // Stop any currently ongoing speech before starting anew.
   chrome.tts.stop();
   speak();
 }
 
+function resume() {
+  if (state.playbackState === 'paused') {
+    state.playbackState = 'playing';
+    chrome.tts.resume();
+  }
+}
+
 function pause() {
   if (state.playbackState === 'playing') {
-    chrome.tts.pause();
     state.playbackState = 'paused';
+    chrome.tts.pause();
   }
 }
 
@@ -151,7 +151,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'play':
       state.tabId = request.tabId;
-      play(request.text);
+      if (state.playbackState === 'paused') {
+        resume();
+      } else {
+        play(request.text);
+      }
       break;
     case 'pause':
       pause();
@@ -187,7 +191,7 @@ chrome.commands.onCommand.addListener((command) => {
         pause();
         break;
       case 'paused':
-        play(); // Resume with existing text.
+        resume();
         break;
       case 'stopped':
         // Try to get text from the last active tab and play.
