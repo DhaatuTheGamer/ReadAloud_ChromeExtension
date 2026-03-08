@@ -57,19 +57,34 @@ function highlightText(text) {
     if (!text) return;
 
     // Find the text on the page and highlight it
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    while (node = walker.nextNode()) {
-        const index = node.nodeValue.indexOf(text);
-        if (index !== -1) {
-            const parent = node.parentElement;
-            if (parent && ['SCRIPT', 'STYLE', 'NOSCRIPT'].indexOf(parent.tagName) === -1) {
-                parent.style.backgroundColor = 'yellow';
-                highlightedElement = parent;
-                parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                break;
+    try {
+        // Escape quotes for XPath string representation
+        const escapeQuotes = (str) => {
+            if (!str.includes("'")) return `'${str}'`;
+            if (!str.includes('"')) return `"${str}"`;
+            return `concat('${str.replace(/'/g, "', \"'\", '")}')`;
+        };
+
+        const xpath = `//text()[contains(., ${escapeQuotes(text)})]`;
+        const result = document.evaluate(xpath, document.body, null, XPathResult.ANY_TYPE, null);
+        let node = result.iterateNext();
+        while (node) {
+            // verify it actually has the exact text (or just relying on contains).
+            // XPath contains is case-sensitive, just like indexOf.
+            const index = node.nodeValue.indexOf(text);
+            if (index !== -1) {
+                const parent = node.parentElement;
+                if (parent && parent.tagName !== 'SCRIPT' && parent.tagName !== 'STYLE' && parent.tagName !== 'NOSCRIPT') {
+                    parent.style.backgroundColor = 'yellow';
+                    highlightedElement = parent;
+                    parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    break;
+                }
             }
+            node = result.iterateNext();
         }
+    } catch (e) {
+        console.error("Highlight search failed", e);
     }
 }
 
