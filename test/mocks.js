@@ -113,6 +113,9 @@ const chrome = {
   tabs: {
       onRemoved: { addListener: () => {} },
       onUpdated: { addListener: () => {} },
-      sendMessage: () => {}
+      sendMessage: () => Promise.resolve()
+  },
+  scripting: {
+      executeScript: () => {}
   }
 };

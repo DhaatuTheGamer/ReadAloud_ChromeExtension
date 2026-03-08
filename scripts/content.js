@@ -35,9 +35,7 @@ function getArticleText() {
 
     // Remove unwanted elements
     const unwantedSelectors = ['nav', 'header', 'footer', '.nav', '.header', '.footer', 'script', 'style', 'noscript', 'iframe', 'aside', 'img', 'figure'];
-    unwantedSelectors.forEach(selector => {
-      clone.querySelectorAll(selector).forEach(el => el.remove());
-    });
+    clone.querySelectorAll(unwantedSelectors.join(',')).forEach(el => el.remove());
 
     return clone.innerText.trim();
   }
