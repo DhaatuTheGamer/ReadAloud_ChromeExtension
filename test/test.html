@@ -10,6 +10,11 @@
   <div id="qunit-fixture"></div>
   <script src="https://unpkg.com/qunit@2.19.1/qunit/qunit.js"></script>
   <script src="mocks.js"></script>
+  <script>
+    // Mock importScripts for background.js since we're in a browser environment
+    window.importScripts = function() {};
+  </script>
+  <script src="../scripts/utils.js"></script>
   <script src="../scripts/background.js"></script>
   <script src="test.js"></script>
 </body>

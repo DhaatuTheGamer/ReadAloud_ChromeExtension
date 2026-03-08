@@ -1,5 +1,7 @@
 // --- START OF FULLY MODIFIED FILE background.js ---
 
+importScripts('utils.js');
+
 let state = {
   text: '',
   chunks: [],
@@ -212,23 +214,10 @@ chrome.commands.onCommand.addListener((command) => {
         break;
       case 'stopped':
         // Try to get text from the last active tab and play.
-        chrome.scripting.executeScript({
-            target: { tabId: state.tabId },
-            files: ['scripts/content.js'],
-        }, () => {
-            if (chrome.runtime.lastError) {
-                console.error("Script injection failed:", chrome.runtime.lastError.message);
-                return;
+        injectAndGetText(state.tabId, (text) => {
+            if (text) {
+                play(text);
             }
-            chrome.tabs.sendMessage(state.tabId, { action: "getText" }, (response) => {
-                if (chrome.runtime.lastError) {
-                    console.error("Message sending failed:", chrome.runtime.lastError.message);
-                    return;
-                }
-                if (response && response.text) {
-                    play(response.text);
-                }
-            });
         });
         break;
     }

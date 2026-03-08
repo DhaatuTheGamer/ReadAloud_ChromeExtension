@@ -84,23 +84,10 @@ playPauseButton.addEventListener('click', () => {
         } else { // 'stopped'
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 const tabId = tabs[0].id;
-                chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    files: ['scripts/content.js'],
-                }, () => {
-                    if (chrome.runtime.lastError) {
-                        console.error(`Script injection failed: ${chrome.runtime.lastError.message}`);
-                        return;
+                injectAndGetText(tabId, (text) => {
+                    if (text) {
+                        chrome.runtime.sendMessage({ action: 'play', text: text, tabId: tabId }, updateUI);
                     }
-                    chrome.tabs.sendMessage(tabId, { action: "getText" }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            console.error(`Message sending failed: ${chrome.runtime.lastError.message}`);
-                            return;
-                        }
-                        if (response && response.text) {
-                            chrome.runtime.sendMessage({ action: 'play', text: response.text, tabId: tabId }, updateUI);
-                        }
-                    });
                 });
             });
         }
