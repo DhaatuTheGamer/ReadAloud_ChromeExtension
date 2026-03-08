@@ -38,7 +38,7 @@ function updateUI(state) {
  * @param {string | null} stateVoice - The currently selected voice name to pre-select.
  */
 function populateVoiceListWithRetry(stateVoice) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let attempts = 0;
     function tryGetVoices() {
       chrome.tts.getVoices(voices => {
@@ -47,6 +47,9 @@ function populateVoiceListWithRetry(stateVoice) {
           if (attempts < 5) {
             attempts++;
             setTimeout(tryGetVoices, 200);
+            return;
+          } else {
+            reject(new Error('Timeout waiting for voices'));
             return;
           }
         }
@@ -123,7 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.runtime.sendMessage({ action: 'getState' }, async (state) => {
     if (state) {
         // It's important to populate the voices list first
-        await populateVoiceListWithRetry(state.voice);
+        try {
+            await populateVoiceListWithRetry(state.voice);
+        } catch (error) {
+            console.warn("Failed to populate voices:", error);
+        }
         // Then, update the entire UI with the current state
         updateUI(state);
         
