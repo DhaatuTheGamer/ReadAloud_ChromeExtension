@@ -3,14 +3,25 @@
 <head>
   <title>Read Aloud Extension Test</title>
   <meta charset="utf-8">
-  <link rel="stylesheet" href="https://unpkg.com/qunit@2.19.1/qunit/qunit.css">
+  <link rel="stylesheet" href="../node_modules/qunit/qunit/qunit.css">
 </head>
 <body>
   <div id="qunit"></div>
   <div id="qunit-fixture"></div>
-  <script src="https://unpkg.com/qunit@2.19.1/qunit/qunit.js"></script>
+  <script src="../node_modules/qunit/qunit/qunit.js"></script>
   <script src="mocks.js"></script>
+  <!-- Background tests -->
   <script src="../scripts/background.js"></script>
   <script src="test.js"></script>
+
+  <!-- Content tests -->
+  <script>
+    // Mock the global chrome API for the content script
+    window.chrome = window.chrome || {};
+    window.chrome.runtime = window.chrome.runtime || {};
+    window.chrome.runtime.onMessage = window.chrome.runtime.onMessage || { addListener: () => {} };
+  </script>
+  <script src="../scripts/content.js"></script>
+  <script src="content.test.js"></script>
 </body>
 </html>

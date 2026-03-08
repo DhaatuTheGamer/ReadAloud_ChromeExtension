@@ -39,7 +39,10 @@ function getArticleText() {
       clone.querySelectorAll(selector).forEach(el => el.remove());
     });
 
-    return clone.innerText.trim();
+    // In jsdom (or older browsers), clone.innerText might be undefined.
+    // Use clone.textContent if innerText is not available.
+    const text = clone.innerText || clone.textContent || '';
+    return text.trim();
   }
 
   return '';
