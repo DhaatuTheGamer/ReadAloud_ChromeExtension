@@ -103,3 +103,78 @@ QUnit.module('Playback Logic', (hooks) => {
     assert.ok(chrome.tts.wasResumed, 'chrome.tts.resume() was called');
   });
 });
+
+QUnit.module('Popup Logic', (hooks) => {
+  hooks.beforeEach(() => {
+    chrome.tts.reset();
+    document.getElementById('voices').innerHTML = '';
+  });
+
+  QUnit.test('populateVoiceListWithRetry populates dropdown immediately when voices are available', (assert) => {
+    assert.expect(2);
+
+    chrome.tts.mockGetVoicesOptions = {
+      voices: [
+        { voiceName: 'Alex', lang: 'en-US' },
+        { voiceName: 'Victoria', lang: 'en-US' }
+      ]
+    };
+
+    const done = assert.async();
+
+    window.populateVoiceListWithRetry().then(() => {
+      const voicesSelect = document.getElementById('voices');
+      assert.equal(voicesSelect.options.length, 2, 'Dropdown should have 2 options');
+      if (voicesSelect.options.length > 0) {
+          assert.equal(voicesSelect.options[0].textContent, 'Alex (en-US)', 'First option should match expected text');
+      } else {
+          assert.ok(false, 'No options added to select');
+      }
+      done();
+    });
+  });
+
+  QUnit.test('populateVoiceListWithRetry retries until voices are available', (assert) => {
+    assert.expect(2);
+
+    chrome.tts.mockGetVoicesOptions = {
+      delayCalls: 2, // Return empty array 2 times before returning voices
+      voices: [
+        { voiceName: 'Fred', lang: 'en-US' }
+      ]
+    };
+
+    const done = assert.async();
+
+    window.populateVoiceListWithRetry().then(() => {
+      const voicesSelect = document.getElementById('voices');
+      assert.equal(voicesSelect.options.length, 1, 'Dropdown should be populated after retries');
+      if (voicesSelect.options.length > 0) {
+          assert.equal(voicesSelect.options[0].textContent, 'Fred (en-US)', 'Option should match expected text');
+      } else {
+          assert.ok(false, 'No options added to select');
+      }
+      done();
+    });
+  });
+
+  QUnit.test('populateVoiceListWithRetry pre-selects the requested voice', (assert) => {
+    assert.expect(1);
+
+    chrome.tts.mockGetVoicesOptions = {
+      voices: [
+        { voiceName: 'Alex', lang: 'en-US' },
+        { voiceName: 'Victoria', lang: 'en-US' },
+        { voiceName: 'Fred', lang: 'en-US' }
+      ]
+    };
+
+    const done = assert.async();
+
+    window.populateVoiceListWithRetry('Victoria').then(() => {
+      const voicesSelect = document.getElementById('voices');
+      assert.equal(voicesSelect.value, 'Victoria', 'Requested voice should be pre-selected');
+      done();
+    });
+  });
+});

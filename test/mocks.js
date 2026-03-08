@@ -4,7 +4,7 @@
 const storage = {};
 
 // Mock implementation of the chrome APIs used by background.js
-const chrome = {
+window.chrome = {
   runtime: {
     onInstalled: {
       addListener: (callback) => {
@@ -23,6 +23,16 @@ const chrome = {
           listener(message, {}, () => {});
         });
       }
+    },
+    sendMessage: (message, callback) => {
+      let handled = false;
+      chrome.runtime.onMessage.listeners.forEach(listener => {
+        listener(message, {}, (response) => {
+          handled = true;
+          if (callback) callback(response);
+        });
+      });
+      if (!handled && callback) callback();
     },
     lastError: null
   },
@@ -72,6 +82,15 @@ const chrome = {
     }
   },
   tts: {
+    getVoices: (callback) => {
+      if (chrome.tts.mockGetVoicesOptions && chrome.tts.mockGetVoicesOptions.delayCalls > 0) {
+        chrome.tts.mockGetVoicesOptions.delayCalls--;
+        callback([]);
+      } else {
+        const voices = chrome.tts.mockGetVoicesOptions?.voices || [];
+        callback(voices);
+      }
+    },
     speak: (text, options, callback) => {
       chrome.tts.isSpeaking = true;
       chrome.tts.lastSpokenText = text;
@@ -113,6 +132,10 @@ const chrome = {
   tabs: {
       onRemoved: { addListener: () => {} },
       onUpdated: { addListener: () => {} },
-      sendMessage: () => {}
+      sendMessage: () => Promise.resolve(),
+      query: (queryInfo, callback) => callback([{id: 1}])
+  },
+  scripting: {
+      executeScript: (injection, callback) => callback()
   }
 };
