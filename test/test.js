@@ -103,3 +103,65 @@ QUnit.module('Playback Logic', (hooks) => {
     assert.ok(chrome.tts.wasResumed, 'chrome.tts.resume() was called');
   });
 });
+
+QUnit.module('Text Chunking', () => {
+  QUnit.test('Empty text should return empty array', (assert) => {
+    assert.deepEqual(chunkText(''), [], 'Empty string results in no chunks');
+    assert.deepEqual(chunkText(null), [], 'Null text results in no chunks');
+    assert.deepEqual(chunkText(undefined), [], 'Undefined text results in no chunks');
+  });
+
+  QUnit.test('Single short sentence should not be split', (assert) => {
+    const text = 'Hello world.';
+    assert.deepEqual(chunkText(text), [text], 'Short sentence is one chunk');
+  });
+
+  QUnit.test('Multiple short sentences should stay together if under maxChunkSize', (assert) => {
+    const text = 'Sentence one. Sentence two? Sentence three!';
+    assert.deepEqual(chunkText(text), [text], 'Multiple short sentences are kept together');
+  });
+
+  QUnit.test('Should split at sentence boundaries when exceeding maxChunkSize', (assert) => {
+    // 250 is maxChunkSize
+    const s1 = 'A'.repeat(200) + '. '; // 202 chars
+    const s2 = 'B'.repeat(100) + '.';   // 101 chars
+    const text = s1 + s2;
+    const result = chunkText(text);
+    assert.equal(result.length, 2, 'Should split into two chunks');
+    assert.equal(result[0], s1.trim(), 'First chunk should be the first sentence');
+    assert.equal(result[1], s2, 'Second chunk should be the second sentence');
+  });
+
+  QUnit.test('Should handle text without sentence punctuation', (assert) => {
+    const text = 'This is a long text without any punctuation but it has some spaces in it';
+    const result = chunkText(text);
+    // Even without punctuation, the current regex [^.!?\s]+ treats words as "sentences" of sorts.
+    // Let's check how it behaves.
+    assert.ok(result.length > 0, 'Should return at least one chunk');
+    assert.equal(result.join(' '), text, 'Recombining chunks (with spaces) should match original text');
+  });
+
+  QUnit.test('Sentence longer than maxChunkSize should be split', (assert) => {
+    // Sentence with 300 characters should be split at a space near 250
+    const longSentence = 'A'.repeat(240) + ' ' + 'B'.repeat(60) + '.';
+    const result = chunkText(longSentence);
+    assert.equal(result.length, 2, 'Should be split into two chunks');
+    assert.equal(result[0], 'A'.repeat(240), 'First chunk should be split at space');
+    assert.equal(result[1], 'B'.repeat(60) + '.', 'Second chunk should contain the rest');
+  });
+
+  QUnit.test('Sentence longer than maxChunkSize without spaces should be split at the limit', (assert) => {
+    const veryLongSentence = 'C'.repeat(300);
+    const result = chunkText(veryLongSentence);
+    assert.equal(result.length, 2, 'Should be split into two chunks even without spaces');
+    assert.equal(result[0].length, 250, 'First chunk should be exactly maxChunkSize');
+    assert.equal(result[1].length, 50, 'Second chunk should contain the remaining characters');
+  });
+
+  QUnit.test('Mixed punctuation and extra spaces', (assert) => {
+    const text = 'Hello!   How are you? I am fine... Great.';
+    const result = chunkText(text);
+    // Current implementation preserves spaces between sentences.
+    assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
+  });
+});

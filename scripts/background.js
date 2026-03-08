@@ -28,11 +28,12 @@ chrome.runtime.onInstalled.addListener(() => {
  */
 function chunkText(text) {
   const maxChunkSize = 250; // A safe max chunk size for TTS engines
-  // Regex to split text into sentences, preserving punctuation.
-  const sentences = text.match(/[^.!?]+[.!?]*|[^.!?\s]+/g) || [];
   const chunks = [];
 
   if (!text) return chunks;
+
+  // Regex to split text into sentences, preserving punctuation.
+  const sentences = text.match(/[^.!?]+[.!?]*|[^.!?\s]+/g) || [];
 
   let currentChunk = '';
   for (const sentence of sentences) {
@@ -43,8 +44,24 @@ function chunkText(text) {
       if (currentChunk.length > 0) {
         chunks.push(currentChunk.trim());
       }
-      // The new sentence becomes the start of the next chunk.
-      currentChunk = sentence;
+
+      // If the sentence itself is too long, split it.
+      if (sentence.length > maxChunkSize) {
+        let remainingSentence = sentence;
+        while (remainingSentence.length > maxChunkSize) {
+          // Find a good place to split within the maxChunkSize
+          let splitIndex = remainingSentence.lastIndexOf(' ', maxChunkSize);
+          // If no space is found, split at the limit
+          if (splitIndex === -1) splitIndex = maxChunkSize;
+
+          chunks.push(remainingSentence.substring(0, splitIndex).trim());
+          remainingSentence = remainingSentence.substring(splitIndex).trim();
+        }
+        currentChunk = remainingSentence;
+      } else {
+        // The new sentence becomes the start of the next chunk.
+        currentChunk = sentence;
+      }
     }
   }
   // Add the last remaining chunk.
