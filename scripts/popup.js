@@ -84,6 +84,14 @@ playPauseButton.addEventListener('click', () => {
         } else { // 'stopped'
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 const tabId = tabs[0].id;
+                chrome.scripting.insertCSS({
+                    target: { tabId: tabId },
+                    files: ['styles/style.css'],
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.error(`CSS injection failed: ${chrome.runtime.lastError.message}`);
+                    }
+                });
                 chrome.scripting.executeScript({
                     target: { tabId: tabId },
                     files: ['scripts/content.js'],

@@ -195,6 +195,14 @@ chrome.commands.onCommand.addListener((command) => {
         break;
       case 'stopped':
         // Try to get text from the last active tab and play.
+        chrome.scripting.insertCSS({
+            target: { tabId: state.tabId },
+            files: ['styles/style.css'],
+        }, () => {
+            if (chrome.runtime.lastError) {
+                console.error("CSS injection failed:", chrome.runtime.lastError.message);
+            }
+        });
         chrome.scripting.executeScript({
             target: { tabId: state.tabId },
             files: ['scripts/content.js'],
