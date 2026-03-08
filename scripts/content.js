@@ -74,10 +74,12 @@ function highlightText(text) {
 }
 
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "getText") {
-        sendResponse({ text: getArticleText() });
-    } else if (request.action === "highlight") {
-        highlightText(request.text);
-    }
-});
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === "getText") {
+            sendResponse({ text: getArticleText() });
+        } else if (request.action === "highlight") {
+            highlightText(request.text);
+        }
+    });
+}

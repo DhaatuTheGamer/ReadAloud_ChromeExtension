@@ -4,7 +4,7 @@
 const storage = {};
 
 // Mock implementation of the chrome APIs used by background.js
-const chrome = {
+window.chrome = {
   runtime: {
     onInstalled: {
       addListener: (callback) => {
@@ -113,6 +113,9 @@ const chrome = {
   tabs: {
       onRemoved: { addListener: () => {} },
       onUpdated: { addListener: () => {} },
-      sendMessage: () => {}
+      sendMessage: () => Promise.resolve()
+  },
+  scripting: {
+      executeScript: () => {}
   }
 };

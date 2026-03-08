@@ -103,3 +103,96 @@ QUnit.module('Playback Logic', (hooks) => {
     assert.ok(chrome.tts.wasResumed, 'chrome.tts.resume() was called');
   });
 });
+
+QUnit.module('Highlight Text Logic', (hooks) => {
+  let originalScrollIntoView;
+
+  hooks.beforeEach(() => {
+    // Reset any previously highlighted element
+    highlightText(null);
+
+    // Mock scrollIntoView to avoid errors in test environment
+    originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function() {
+        this._scrolledIntoView = true;
+    };
+
+    // Setup DOM fixture
+    const fixture = document.getElementById('qunit-fixture');
+    fixture.innerHTML = `
+      <div id="normal-text">This is normal text.</div>
+      <script id="script-text">const a = "This is script text.";</script>
+      <style id="style-text">.b { content: "This is style text."; }</style>
+      <noscript id="noscript-text">This is noscript text.</noscript>
+      <div id="nested-text"><span>This is nested text.</span></div>
+    `;
+  });
+
+  hooks.afterEach(() => {
+    // Restore original scrollIntoView
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+    highlightText(null);
+    document.getElementById('qunit-fixture').innerHTML = '';
+  });
+
+  QUnit.test('Should not highlight anything for empty, null, or undefined text', (assert) => {
+    assert.expect(2);
+
+    highlightText('');
+    const normalDiv = document.getElementById('normal-text');
+    assert.equal(normalDiv.style.backgroundColor, '', 'Empty string should not highlight');
+
+    highlightText(null);
+    assert.equal(normalDiv.style.backgroundColor, '', 'Null should not highlight');
+  });
+
+  QUnit.test('Should highlight normal text and scroll into view', (assert) => {
+    assert.expect(2);
+
+    highlightText('This is normal text.');
+    const normalDiv = document.getElementById('normal-text');
+
+    assert.equal(normalDiv.style.backgroundColor, 'yellow', 'Normal text element should have yellow background');
+    assert.ok(normalDiv._scrolledIntoView, 'scrollIntoView should be called on the element');
+  });
+
+  QUnit.test('Should clear previous highlight when new text is highlighted', (assert) => {
+    assert.expect(2);
+
+    highlightText('This is normal text.');
+    const normalDiv = document.getElementById('normal-text');
+    assert.equal(normalDiv.style.backgroundColor, 'yellow', 'First element is highlighted');
+
+    highlightText('This is nested text.');
+    const nestedSpan = document.getElementById('nested-text').querySelector('span');
+
+    assert.equal(normalDiv.style.backgroundColor, '', 'Previous highlight should be cleared');
+  });
+
+  QUnit.test('Should clear previous highlight when null or empty text is passed', (assert) => {
+    assert.expect(2);
+
+    highlightText('This is normal text.');
+    const normalDiv = document.getElementById('normal-text');
+    assert.equal(normalDiv.style.backgroundColor, 'yellow', 'First element is highlighted');
+
+    highlightText(null);
+    assert.equal(normalDiv.style.backgroundColor, '', 'Highlight should be cleared with null');
+  });
+
+  QUnit.test('Should ignore text inside SCRIPT, STYLE, and NOSCRIPT tags', (assert) => {
+    assert.expect(3);
+
+    highlightText('This is script text.');
+    const scriptEl = document.getElementById('script-text');
+    assert.notEqual(scriptEl.style.backgroundColor, 'yellow', 'Script tags should be ignored');
+
+    highlightText('This is style text.');
+    const styleEl = document.getElementById('style-text');
+    assert.notEqual(styleEl.style.backgroundColor, 'yellow', 'Style tags should be ignored');
+
+    highlightText('This is noscript text.');
+    const noscriptEl = document.getElementById('noscript-text');
+    assert.notEqual(noscriptEl.style.backgroundColor, 'yellow', 'Noscript tags should be ignored');
+  });
+});
