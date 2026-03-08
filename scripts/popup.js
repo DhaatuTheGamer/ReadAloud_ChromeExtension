@@ -51,7 +51,7 @@ function populateVoiceListWithRetry(stateVoice) {
           }
         }
         
-        voicesSelect.innerHTML = ''; // Clear any existing options
+        voicesSelect.replaceChildren(); // Clear any existing options
         voices.forEach(voice => {
           const option = document.createElement('option');
           option.textContent = `${voice.voiceName} (${voice.lang})`;
