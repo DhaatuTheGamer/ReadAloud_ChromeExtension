@@ -88,6 +88,9 @@ function highlightText(text) {
     }
 }
 
+// Expose highlightText globally for testing
+window.highlightText = highlightText;
+
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "getText") {

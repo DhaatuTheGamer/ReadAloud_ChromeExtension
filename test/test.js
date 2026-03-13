@@ -165,3 +165,54 @@ QUnit.module('Text Chunking', () => {
     assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
   });
 });
+
+QUnit.module('Content Script Highlighting', (hooks) => {
+  let originalScrollIntoView;
+
+  hooks.beforeEach(() => {
+    // Add elements outside qunit-fixture to avoid detaching problems
+    const fixture = document.getElementById('qunit-fixture');
+    const content = document.createElement('div');
+    content.id = 'highlight-content';
+    content.innerHTML = '<p>This is some test text to highlight.</p>';
+    fixture.appendChild(content);
+
+    // Mock Element.prototype.scrollIntoView to avoid errors in headless mode
+    originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = () => {};
+  });
+
+  hooks.afterEach(() => {
+    // Restore scrollIntoView
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+  });
+
+  QUnit.test('highlightText should catch and log errors from document.evaluate', (assert) => {
+    assert.expect(1);
+
+    // Mock document.evaluate to throw an error
+    const originalEvaluate = document.evaluate;
+    document.evaluate = () => {
+      throw new Error('Simulated XPath error');
+    };
+
+    // Mock console.error
+    const originalConsoleError = console.error;
+    let consoleErrorCalled = false;
+    console.error = (msg, err) => {
+      if (msg === 'Highlight search failed' && err.message === 'Simulated XPath error') {
+        consoleErrorCalled = true;
+      }
+    };
+
+    try {
+      // This should not crash
+      window.highlightText('test text');
+      assert.ok(consoleErrorCalled, 'console.error was called with the correct message and error');
+    } finally {
+      // Restore mocks
+      document.evaluate = originalEvaluate;
+      console.error = originalConsoleError;
+    }
+  });
+});
