@@ -18,22 +18,7 @@
   </div>
 
   <script src="https://unpkg.com/qunit@2.19.1/qunit/qunit.js"></script>
-  <script>
-    window.qunit_fails = [];
-    window.qunit_errors = [];
-    QUnit.log(function(details) {
-      if (details.result) { return; }
-      window.qunit_fails.push(details);
-    });
-    QUnit.testDone(function(details) {
-      if (details.failed > 0) {
-        window.qunit_fails.push({ type: 'testDone', details });
-      }
-    });
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
-      window.qunit_errors.push({msg, url, lineNo});
-    };
-  </script>
+  <script src="https://unpkg.com/sinon@15.0.1/pkg/sinon.js"></script>
   <script src="mocks.js"></script>
   <script>
     // Mock importScripts for background.js since we're in a browser environment

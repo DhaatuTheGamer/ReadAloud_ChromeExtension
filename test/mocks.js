@@ -103,12 +103,14 @@ window.chrome = {
       if (chrome.tts.getVoicesMock) {
         chrome.tts.getVoicesMock(callback);
       } else {
+        // Default mock behavior
         callback([
-          { voiceName: 'Voice A', lang: 'en-US' },
-          { voiceName: 'Voice B', lang: 'en-GB' }
+          { voiceName: 'Mock Voice 1', lang: 'en-US' },
+          { voiceName: 'Mock Voice 2', lang: 'en-GB' }
         ]);
       }
     },
+    getVoicesMock: null,
     // --- Test-specific state ---
     isSpeaking: false,
     wasPaused: false,

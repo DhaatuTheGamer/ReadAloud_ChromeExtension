@@ -33,12 +33,6 @@ function updateUI(state) {
     }
 }
 
-// Expose internal functions for testing
-if (typeof window !== 'undefined') {
-    window.updateUI = updateUI;
-    window.populateVoiceListWithRetry = populateVoiceListWithRetry;
-}
-
 /**
  * Fetches and populates the voice dropdown list. Retries if the API is slow to respond.
  * @param {string | null} stateVoice - The currently selected voice name to pre-select.
@@ -82,6 +76,12 @@ function populateVoiceListWithRetry(stateVoice) {
     }
     tryGetVoices();
   });
+}
+
+// Expose internal functions for testing
+if (typeof window !== 'undefined') {
+    window.updateUI = updateUI;
+    window.populateVoiceListWithRetry = populateVoiceListWithRetry;
 }
 
 /**
