@@ -126,6 +126,78 @@ QUnit.module('Playback Logic', (hooks) => {
   });
 });
 
+QUnit.module('splitLongSentence Helper', () => {
+  QUnit.test('Should not split sentence if length is less than or equal to maxChunkSize', (assert) => {
+    const text = 'This is short.';
+    const result = splitLongSentence(text, 50);
+    assert.deepEqual(result, [text], 'Short sentence is not split');
+
+    const exactLength = 'A'.repeat(50);
+    const resultExact = splitLongSentence(exactLength, 50);
+    assert.deepEqual(resultExact, [exactLength], 'Exact length sentence is not split');
+  });
+
+  QUnit.test('Should split sentence at the last space within maxChunkSize', (assert) => {
+    // 25 chars max, split should happen at the space before 25.
+    // "This is a sentence that" (23 chars) " is quite long."
+    const text = 'This is a sentence that is quite long.';
+    const result = splitLongSentence(text, 25);
+    assert.equal(result.length, 2, 'Should split into two chunks');
+    assert.equal(result[0], 'This is a sentence that', 'First chunk splits at last space');
+    assert.equal(result[1], 'is quite long.', 'Second chunk contains the rest');
+  });
+
+  QUnit.test('Should split sentence exactly at maxChunkSize if no spaces exist', (assert) => {
+    const text = 'A'.repeat(50);
+    const result = splitLongSentence(text, 25);
+    assert.equal(result.length, 2, 'Should split into two chunks');
+    assert.equal(result[0], 'A'.repeat(25), 'First chunk is exactly maxChunkSize');
+    assert.equal(result[1], 'A'.repeat(25), 'Second chunk is the rest');
+  });
+
+  QUnit.test('Should handle multiple splits', (assert) => {
+    // Length: 49. Max size: 10
+    // "One two" (7), "three" (5), "four five" (9), "six" (3), "seven eight" (11->split), "nine" (4)
+    // Wait, let's make it simpler and deterministic
+    const text = 'A a B b C c D d E e F f G g';
+    const result = splitLongSentence(text, 5);
+    // "A a B" -> "A a", length 3
+    // "B b C" -> "B b", length 3
+    // "C c D" -> "C c", length 3
+    // "D d E" -> "D d", length 3
+    // "E e F" -> "E e", length 3
+    // "F f G" -> "F f", length 3
+    // "G g"   -> "G g", length 3
+
+    // Actually splitLongSentence("A a B b C c D d E e F f G g", 5):
+    // max is 5.
+    // "A a B b..."
+    // max limit is index 5. "A a B ". The space is at index 5.
+    // splitIndex = 5.
+    // substring(0, 5) -> "A a B"
+    // remainder -> "b C c D d E e F f G g"
+
+    // The exact behavior is fine, just verify it runs until the end.
+    assert.ok(result.length > 2, 'Should split into multiple chunks');
+    for (let i = 0; i < result.length; i++) {
+      assert.ok(result[i].length <= 5, 'Every chunk should be <= maxChunkSize');
+    }
+    assert.equal(result.join(' '), text.replace(/\s+/g, ' ').trim(), 'Chunks combined should roughly equal the text');
+  });
+
+  QUnit.test('Should trim whitespace correctly', (assert) => {
+    const text = 'Word      word      word      word';
+    const result = splitLongSentence(text, 12);
+    // 1st chunk max 12 -> "Word      wo" -> space at 4 -> "Word"
+    // remainder -> "     word      word      word" -> trimmed -> "word      word      word"
+    assert.equal(result[0], 'Word', 'Should trim the chunk');
+    // We expect no leading/trailing spaces in the chunks
+    for (let i = 0; i < result.length; i++) {
+      assert.equal(result[i], result[i].trim(), 'Chunk is trimmed');
+    }
+  });
+});
+
 QUnit.module('Text Chunking', () => {
   QUnit.test('Empty text should return empty array', (assert) => {
     assert.deepEqual(chunkText(''), [], 'Empty string results in no chunks');
