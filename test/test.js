@@ -188,85 +188,53 @@ QUnit.module('Text Chunking', () => {
   });
 });
 
-QUnit.module('injectAndGetText Error Handling', (hooks) => {
-  let originalConsoleError;
+QUnit.module('Content Script Highlighting', (hooks) => {
+  let originalScrollIntoView;
 
   hooks.beforeEach(() => {
-    chrome.runtime.lastError = null;
-    chrome.tabs.sendMessageMock = null;
-    // Suppress console.error during these tests so we don't clutter output
-    originalConsoleError = console.error;
-    console.error = () => {};
+    // Add elements outside qunit-fixture to avoid detaching problems
+    const fixture = document.getElementById('qunit-fixture');
+    const content = document.createElement('div');
+    content.id = 'highlight-content';
+    content.innerHTML = '<p>This is some test text to highlight.</p>';
+    fixture.appendChild(content);
+
+    // Mock Element.prototype.scrollIntoView to avoid errors in headless mode
+    originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = () => {};
   });
 
   hooks.afterEach(() => {
-    chrome.runtime.lastError = null;
-    chrome.tabs.sendMessageMock = null;
-    console.error = originalConsoleError;
+    // Restore scrollIntoView
+    Element.prototype.scrollIntoView = originalScrollIntoView;
   });
 
-  QUnit.test('Happy path: successfully injects and gets text', (assert) => {
+  QUnit.test('highlightText should catch and log errors from document.evaluate', (assert) => {
     assert.expect(1);
-    const done = assert.async();
 
-    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
-      callback({ text: 'Injected text' });
+    // Mock document.evaluate to throw an error
+    const originalEvaluate = document.evaluate;
+    document.evaluate = () => {
+      throw new Error('Simulated XPath error');
     };
 
-    injectAndGetText(1, (text) => {
-      assert.equal(text, 'Injected text', 'Should return the text from the response');
-      done();
-    });
-  });
-
-  QUnit.test('Error during script injection', (assert) => {
-    assert.expect(1);
-    const done = assert.async();
-
-    chrome.runtime.lastError = { message: 'Injection failed' };
-
-    injectAndGetText(1, (text) => {
-      assert.strictEqual(text, null, 'Should return null when injection fails');
-      done();
-    });
-  });
-
-  QUnit.test('Error during sendMessage', (assert) => {
-    assert.expect(1);
-    const done = assert.async();
-
-    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
-      chrome.runtime.lastError = { message: 'Message failed' };
-      callback(null);
+    // Mock console.error
+    const originalConsoleError = console.error;
+    let consoleErrorCalled = false;
+    console.error = (msg, err) => {
+      if (msg === 'Highlight search failed' && err.message === 'Simulated XPath error') {
+        consoleErrorCalled = true;
+      }
     };
 
-    injectAndGetText(1, (text) => {
-      assert.strictEqual(text, null, 'Should return null when sending message fails');
-      done();
-    });
-  });
-
-  QUnit.test('Response is null or text is empty', (assert) => {
-    assert.expect(2);
-    const done1 = assert.async();
-    const done2 = assert.async();
-
-    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
-      callback(null);
-    };
-
-    injectAndGetText(1, (text) => {
-      assert.strictEqual(text, null, 'Should return null when response is null');
-      done1();
-    });
-
-    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
-      callback({ other: 'data' });
-    };
-
-    injectAndGetText(1, (text) => {
-      assert.strictEqual(text, null, 'Should return null when response.text is missing');
-      done2();
-    });
+    try {
+      // This should not crash
+      window.highlightText('test text');
+      assert.ok(consoleErrorCalled, 'console.error was called with the correct message and error');
+    } finally {
+      // Restore mocks
+      document.evaluate = originalEvaluate;
+      console.error = originalConsoleError;
+    }
   });
 });

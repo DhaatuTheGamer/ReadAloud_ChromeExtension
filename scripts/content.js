@@ -78,10 +78,9 @@ function highlightText(text) {
     }
 }
 
-// Expose for testing
-if (typeof window !== 'undefined') {
-    window.highlightText = highlightText;
-}
+// Expose highlightText globally for testing
+window.highlightText = highlightText;
+
 
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
