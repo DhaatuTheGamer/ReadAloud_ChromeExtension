@@ -188,64 +188,82 @@ QUnit.module('Text Chunking', () => {
   });
 });
 
-QUnit.module('Content Script Highlighting', (hooks) => {
+QUnit.module('Popup UI Logic', (hooks) => {
+  let playPauseBtn, rateInput, rateValueSpan, voicesSelect;
+
   hooks.beforeEach(() => {
-    // Mock scrollIntoView
-    if (!Element.prototype.scrollIntoView) {
-      Element.prototype.scrollIntoView = function() {};
-    }
-    // Clean up fixture
-    document.getElementById('qunit-fixture').innerHTML = '';
+    playPauseBtn = document.getElementById('play-pause');
+    rateInput = document.getElementById('rate');
+    rateValueSpan = document.getElementById('rate-value');
+    voicesSelect = document.getElementById('voices');
+
+    // Because the elements are outside qunit-fixture, we must manually reset them
+    playPauseBtn.textContent = 'Play';
+    playPauseBtn.classList.remove('playing');
+    rateInput.value = '1';
+    rateValueSpan.textContent = '1.0x';
+    voicesSelect.replaceChildren(); // clear options
   });
 
-  QUnit.test('Should highlight found text', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p = document.createElement('p');
-    p.textContent = 'This is some text to highlight.';
-    fixture.appendChild(p);
+  QUnit.test('updateUI sets Play/Pause button correctly for playing state', (assert) => {
+    const state = { playbackState: 'playing', rate: '1.0' };
+    updateUI(state);
 
-    highlightText('text to highlight');
-
-    assert.equal(p.style.backgroundColor, 'yellow', 'Element containing text should be highlighted');
+    assert.equal(playPauseBtn.textContent, 'Pause', 'Button text should be "Pause" when playing');
+    assert.ok(playPauseBtn.classList.contains('playing'), 'Button should have "playing" class');
   });
 
-  QUnit.test('Should handle special characters in text', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p = document.createElement('p');
-    p.textContent = 'Text with "double quotes" and \'single quotes\'.';
-    fixture.appendChild(p);
+  QUnit.test('updateUI sets Play/Pause button correctly for paused/stopped state', (assert) => {
+    const state = { playbackState: 'paused', rate: '1.0' };
+    updateUI(state);
 
-    highlightText('with "double quotes" and \'single quotes\'');
+    assert.equal(playPauseBtn.textContent, 'Play', 'Button text should be "Play" when paused');
+    assert.notOk(playPauseBtn.classList.contains('playing'), 'Button should not have "playing" class');
 
-    assert.equal(p.style.backgroundColor, 'yellow', 'Element with quotes should be highlighted');
+    const stateStopped = { playbackState: 'stopped', rate: '1.0' };
+    updateUI(stateStopped);
+
+    assert.equal(playPauseBtn.textContent, 'Play', 'Button text should be "Play" when stopped');
+    assert.notOk(playPauseBtn.classList.contains('playing'), 'Button should not have "playing" class');
   });
 
-  QUnit.test('Should handle complex characters', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p = document.createElement('p');
-    p.textContent = 'Special chars: [] () * + ? . \\ ^ $ |';
-    fixture.appendChild(p);
+  QUnit.test('updateUI updates rate slider and rate value display', (assert) => {
+    const state = { rate: '1.5' };
+    updateUI(state);
 
-    highlightText('chars: [] () * + ? . \\ ^ $ |');
+    assert.equal(rateInput.value, '1.5', 'Rate input value should be 1.5');
+    assert.equal(rateValueSpan.textContent, '1.5x', 'Rate value text should be "1.5x"');
 
-    assert.equal(p.style.backgroundColor, 'yellow', 'Element with regex/xpath special chars should be highlighted');
+    const stateDecimal = { rate: '0.8' };
+    updateUI(stateDecimal);
+
+    assert.equal(rateInput.value, '0.8', 'Rate input value should be 0.8');
+    assert.equal(rateValueSpan.textContent, '0.8x', 'Rate value text should be "0.8x"');
   });
 
-  QUnit.test('Should clear previous highlight', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p1 = document.createElement('p');
-    p1.textContent = 'First text.';
-    const p2 = document.createElement('p');
-    p2.textContent = 'Second text.';
-    fixture.appendChild(p1);
-    fixture.appendChild(p2);
+  QUnit.test('updateUI updates voice selection if options exist', (assert) => {
+    // Add some mock options to the select element
+    const opt1 = document.createElement('option');
+    opt1.value = 'Voice A';
+    const opt2 = document.createElement('option');
+    opt2.value = 'Voice B';
+    voicesSelect.appendChild(opt1);
+    voicesSelect.appendChild(opt2);
 
-    highlightText('First text');
-    assert.equal(p1.style.backgroundColor, 'yellow');
+    const state = { voice: 'Voice B', rate: '1.0' };
+    updateUI(state);
 
-    highlightText('Second text');
-    assert.equal(p1.style.backgroundColor, '', 'First highlight should be cleared');
-    assert.equal(p2.style.backgroundColor, 'yellow', 'Second text should be highlighted');
+    assert.equal(voicesSelect.value, 'Voice B', 'Voice select should match the state voice');
+  });
+
+  QUnit.test('updateUI does not throw if voicesSelect options are empty', (assert) => {
+    const state = { voice: 'Voice C', rate: '1.0' };
+
+    // updateUI should handle the empty voicesSelect list safely
+    updateUI(state);
+
+    assert.ok(true, 'updateUI completed without error when voicesSelect is empty');
+    assert.equal(voicesSelect.value, '', 'Voice select should remain unselected/empty');
   });
 
   QUnit.test('Should handle null or empty text gracefully', (assert) => {

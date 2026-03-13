@@ -113,7 +113,14 @@ window.chrome = {
   tabs: {
       onRemoved: { addListener: () => {} },
       onUpdated: { addListener: () => {} },
-      sendMessage: () => Promise.resolve()
+      sendMessage: (tabId, message, callback) => {
+          if (chrome.tabs.sendMessageMock) {
+              return chrome.tabs.sendMessageMock(tabId, message, callback);
+          }
+          if (callback) callback();
+          return Promise.resolve();
+      },
+      sendMessageMock: null
   },
   scripting: {
       executeScript: (options, callback) => {
