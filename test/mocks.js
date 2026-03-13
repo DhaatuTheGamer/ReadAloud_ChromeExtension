@@ -113,7 +113,19 @@ window.chrome = {
   tabs: {
       onRemoved: { addListener: () => {} },
       onUpdated: { addListener: () => {} },
-      sendMessage: () => Promise.resolve()
+      mockMessageResponse: null,
+      sendMessage: (tabId, message, options, callback) => {
+          let cb = callback;
+          if (typeof options === 'function') {
+              cb = options;
+          }
+          if (cb) {
+              // use setTimeout to ensure it behaves asynchronously and allows lastError to be set before callback if needed,
+              // but standard test mocks often just call synchronously. Let's call synchronously for simplicity unless it causes issues.
+              cb(chrome.tabs.mockMessageResponse);
+          }
+          return Promise.resolve();
+      }
   },
   scripting: {
       executeScript: (options, callback) => {
