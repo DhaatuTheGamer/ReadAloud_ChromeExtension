@@ -34,10 +34,8 @@ function getArticleText() {
     const clone = bestElement.cloneNode(true);
 
     // Remove unwanted elements
-    const unwantedSelectors = ['nav', 'header', 'footer', '.nav', '.header', '.footer', 'script', 'style', 'noscript', 'iframe', 'aside', 'img', 'figure'];
-    unwantedSelectors.forEach(selector => {
-      clone.querySelectorAll(selector).forEach(el => el.remove());
-    });
+    const unwantedSelectors = 'nav, header, footer, .nav, .header, .footer, script, style, noscript, iframe, aside, img, figure';
+    clone.querySelectorAll(unwantedSelectors).forEach(el => el.remove());
 
     return clone.innerText.trim();
   }
