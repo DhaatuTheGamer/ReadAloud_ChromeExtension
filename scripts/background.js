@@ -37,14 +37,17 @@ function chunkText(text) {
   // Regex to split text into sentences, preserving punctuation.
   const sentences = text.match(/[^.!?]+[.!?]*|[^.!?\s]+/g) || [];
 
-  let currentChunk = '';
+  let currentChunkParts = [];
+  let currentChunkLength = 0;
+
   for (const sentence of sentences) {
-    if (currentChunk.length + sentence.length <= maxChunkSize) {
-      currentChunk += sentence;
+    if (currentChunkLength + sentence.length <= maxChunkSize) {
+      currentChunkParts.push(sentence);
+      currentChunkLength += sentence.length;
     } else {
       // If the current chunk is not empty, push it.
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk.trim());
+      if (currentChunkParts.length > 0) {
+        chunks.push(currentChunkParts.join('').trim());
       }
 
       // If the sentence itself is too long, split it.
@@ -59,16 +62,21 @@ function chunkText(text) {
           chunks.push(remainingSentence.substring(0, splitIndex).trim());
           remainingSentence = remainingSentence.substring(splitIndex).trim();
         }
-        currentChunk = remainingSentence;
+        currentChunkParts = [remainingSentence];
+        currentChunkLength = remainingSentence.length;
       } else {
         // The new sentence becomes the start of the next chunk.
-        currentChunk = sentence;
+        currentChunkParts = [sentence];
+        currentChunkLength = sentence.length;
       }
     }
   }
   // Add the last remaining chunk.
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk.trim());
+  if (currentChunkParts.length > 0) {
+    const finalChunk = currentChunkParts.join('').trim();
+    if (finalChunk) {
+      chunks.push(finalChunk);
+    }
   }
 
   return chunks;
