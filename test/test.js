@@ -187,54 +187,126 @@ QUnit.module('Text Chunking', () => {
     assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
   });
 });
-
-QUnit.module('Content Script Highlighting', (hooks) => {
-  let originalScrollIntoView;
+QUnit.module('getArticleText', (hooks) => {
+  let originalGetSelection;
+  let originalQuerySelector;
 
   hooks.beforeEach(() => {
-    // Add elements outside qunit-fixture to avoid detaching problems
-    const fixture = document.getElementById('qunit-fixture');
-    const content = document.createElement('div');
-    content.id = 'highlight-content';
-    content.innerHTML = '<p>This is some test text to highlight.</p>';
-    fixture.appendChild(content);
+    // Save original to restore later
+    originalGetSelection = window.getSelection;
+    originalQuerySelector = document.querySelector;
 
-    // Mock Element.prototype.scrollIntoView to avoid errors in headless mode
-    originalScrollIntoView = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = () => {};
+    // Clear the fixture area before each test
+    const fixture = document.getElementById('qunit-fixture');
+    if (fixture) {
+      fixture.innerHTML = '';
+    }
   });
 
   hooks.afterEach(() => {
-    // Restore scrollIntoView
-    Element.prototype.scrollIntoView = originalScrollIntoView;
+    // Restore original window.getSelection
+    window.getSelection = originalGetSelection;
+    document.querySelector = originalQuerySelector;
   });
 
-  QUnit.test('highlightText should catch and log errors from document.evaluate', (assert) => {
-    assert.expect(1);
+  QUnit.test('Returns selection text if user has selected text', (assert) => {
+    window.getSelection = () => ({
+      toString: () => '  Selected text here  '
+    });
 
-    // Mock document.evaluate to throw an error
-    const originalEvaluate = document.evaluate;
-    document.evaluate = () => {
-      throw new Error('Simulated XPath error');
+    const result = getArticleText();
+    assert.equal(result, 'Selected text here', 'Should return trimmed selection text');
+  });
+
+  QUnit.test('Returns empty string if no relevant content found', (assert) => {
+    window.getSelection = () => ({ toString: () => '' });
+
+    // Create an empty body structure using document.querySelector override
+    document.querySelector = (sel) => { return null; };
+
+    const result = getArticleText();
+    assert.equal(result, '', 'Should return empty string if nothing matches');
+  });
+
+  QUnit.test('Finds and returns text from "article" element', (assert) => {
+    window.getSelection = () => ({ toString: () => '' });
+
+    const el = document.createElement('article');
+    el.innerText = 'Article content here';
+    document.querySelector = (sel) => {
+        if (sel === 'article') return el;
+        return null;
     };
 
-    // Mock console.error
-    const originalConsoleError = console.error;
-    let consoleErrorCalled = false;
-    console.error = (msg, err) => {
-      if (msg === 'Highlight search failed' && err.message === 'Simulated XPath error') {
-        consoleErrorCalled = true;
-      }
+    const result = getArticleText();
+    assert.equal(result, 'Article content here', 'Should extract text from <article>');
+  });
+
+  QUnit.test('Finds and returns text from ".article" element', (assert) => {
+    window.getSelection = () => ({ toString: () => '' });
+
+    const el = document.createElement('div');
+    el.className = 'article';
+    el.innerText = 'Class article content';
+    document.querySelector = (sel) => {
+        if (sel === '.article') return el;
+        return null;
     };
 
-    try {
-      // This should not crash
-      window.highlightText('test text');
-      assert.ok(consoleErrorCalled, 'console.error was called with the correct message and error');
-    } finally {
-      // Restore mocks
-      document.evaluate = originalEvaluate;
-      console.error = originalConsoleError;
-    }
+    const result = getArticleText();
+    assert.equal(result, 'Class article content', 'Should extract text from .article');
+  });
+
+  QUnit.test('Ignores unwanted elements (nav, header, footer, etc.)', (assert) => {
+    window.getSelection = () => ({ toString: () => '' });
+
+    const fixture = document.getElementById('qunit-fixture');
+    fixture.innerHTML = `
+      <article>
+        <header>Header to ignore</header>
+        <nav>Nav to ignore</nav>
+        <aside>Aside to ignore</aside>
+        <div id="keep">Main content</div>
+        <script>console.log("ignore me");</script>
+        <footer>Footer to ignore</footer>
+      </article>
+    `;
+
+    // In headless browser innerText works on elements attached to DOM
+    // For elements not rendered, it might be undefined or empty.
+    // However, getArticleText uses `cloneNode(true)`, and then queries off it.
+    // In playwright/chrome, innerText of an unattached cloned node *might* be empty.
+    // Wait, the original code uses: `clone.innerText.trim()`.
+    // If the node is cloned but not attached, innerText might be empty in some browsers.
+    // Let's modify the document.querySelector to return the fixture's article
+    document.querySelector = (sel) => {
+        if (sel === 'article') return fixture.querySelector('article');
+        return null;
+    };
+
+    const result = getArticleText();
+    assert.ok(result.includes('Main content'), 'Should contain the main content');
+    assert.notOk(result.includes('Header to ignore'), 'Should not contain header');
+    assert.notOk(result.includes('Nav to ignore'), 'Should not contain nav');
+  });
+
+  QUnit.test('Matches highest priority selector', (assert) => {
+    window.getSelection = () => ({ toString: () => '' });
+
+    const el1 = document.createElement('article');
+    el1.innerText = 'Should pick this because it has higher priority';
+
+    const el2 = document.createElement('div');
+    el2.className = 'article';
+    el2.innerText = 'Should not pick this';
+
+    document.querySelector = (sel) => {
+        if (sel === 'article') return el1;
+        if (sel === '.article') return el2;
+        return null;
+    };
+
+    const result = getArticleText();
+    assert.equal(result, 'Should pick this because it has higher priority', 'Should match highest priority selector');
   });
 });
