@@ -24,6 +24,12 @@ window.chrome = {
         });
       }
     },
+    sendMessage: (message, callback) => {
+      // Basic mock for chrome.runtime.sendMessage to avoid errors in popup.js
+      if (callback) {
+        callback({ playbackState: 'stopped', rate: 1, voice: null });
+      }
+    },
     lastError: null
   },
   commands: {
@@ -112,6 +118,7 @@ window.chrome = {
     wasStopped: false,
     lastSpokenText: null,
     lastOptions: null,
+    getVoicesMock: null,
     // Helper to reset state between tests
     reset: () => {
         chrome.tts.isSpeaking = false;

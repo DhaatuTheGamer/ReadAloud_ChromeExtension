@@ -73,18 +73,13 @@ function chunkText(text) {
 
       // If the sentence itself is too long, split it.
       if (sentence.length > maxChunkSize) {
-        let remainingSentence = sentence;
-        while (remainingSentence.length > maxChunkSize) {
-          // Find a good place to split within the maxChunkSize
-          let splitIndex = remainingSentence.lastIndexOf(' ', maxChunkSize);
-          // If no space is found, split at the limit
-          if (splitIndex === -1) splitIndex = maxChunkSize;
-
-          chunks.push(remainingSentence.substring(0, splitIndex).trim());
-          remainingSentence = remainingSentence.substring(splitIndex).trim();
+        const subChunks = splitLongSentence(sentence, maxChunkSize);
+        if (subChunks.length > 0) {
+          const lastSubChunk = subChunks.pop();
+          chunks.push(...subChunks);
+          currentChunkParts = [lastSubChunk];
+          currentChunkLength = lastSubChunk.length;
         }
-        currentChunkParts = [remainingSentence];
-        currentChunkLength = remainingSentence.length;
       } else {
         // The new sentence becomes the start of the next chunk.
         currentChunkParts = [sentence];
