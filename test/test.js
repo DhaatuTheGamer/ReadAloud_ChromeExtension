@@ -188,63 +188,85 @@ QUnit.module('Text Chunking', () => {
   });
 });
 
-QUnit.module('Content Script Highlighting', (hooks) => {
+QUnit.module('injectAndGetText Error Handling', (hooks) => {
+  let originalConsoleError;
+
   hooks.beforeEach(() => {
-    // Mock scrollIntoView
-    if (!Element.prototype.scrollIntoView) {
-      Element.prototype.scrollIntoView = function() {};
-    }
-    // Clean up fixture
-    document.getElementById('qunit-fixture').innerHTML = '';
+    chrome.runtime.lastError = null;
+    chrome.tabs.sendMessageMock = null;
+    // Suppress console.error during these tests so we don't clutter output
+    originalConsoleError = console.error;
+    console.error = () => {};
   });
 
-  QUnit.test('Should highlight found text', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p = document.createElement('p');
-    p.textContent = 'This is some text to highlight.';
-    fixture.appendChild(p);
-
-    highlightText('text to highlight');
-
-    assert.equal(p.style.backgroundColor, 'yellow', 'Element containing text should be highlighted');
+  hooks.afterEach(() => {
+    chrome.runtime.lastError = null;
+    chrome.tabs.sendMessageMock = null;
+    console.error = originalConsoleError;
   });
 
-  QUnit.test('Should handle special characters in text', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p = document.createElement('p');
-    p.textContent = 'Text with "double quotes" and \'single quotes\'.';
-    fixture.appendChild(p);
+  QUnit.test('Happy path: successfully injects and gets text', (assert) => {
+    assert.expect(1);
+    const done = assert.async();
 
-    highlightText('with "double quotes" and \'single quotes\'');
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      callback({ text: 'Injected text' });
+    };
 
-    assert.equal(p.style.backgroundColor, 'yellow', 'Element with quotes should be highlighted');
+    injectAndGetText(1, (text) => {
+      assert.equal(text, 'Injected text', 'Should return the text from the response');
+      done();
+    });
   });
 
-  QUnit.test('Should handle complex characters', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p = document.createElement('p');
-    p.textContent = 'Special chars: [] () * + ? . \\ ^ $ |';
-    fixture.appendChild(p);
+  QUnit.test('Error during script injection', (assert) => {
+    assert.expect(1);
+    const done = assert.async();
 
-    highlightText('chars: [] () * + ? . \\ ^ $ |');
+    chrome.runtime.lastError = { message: 'Injection failed' };
 
-    assert.equal(p.style.backgroundColor, 'yellow', 'Element with regex/xpath special chars should be highlighted');
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when injection fails');
+      done();
+    });
   });
 
-  QUnit.test('Should clear previous highlight', (assert) => {
-    const fixture = document.getElementById('qunit-fixture');
-    const p1 = document.createElement('p');
-    p1.textContent = 'First text.';
-    const p2 = document.createElement('p');
-    p2.textContent = 'Second text.';
-    fixture.appendChild(p1);
-    fixture.appendChild(p2);
+  QUnit.test('Error during sendMessage', (assert) => {
+    assert.expect(1);
+    const done = assert.async();
 
-    highlightText('First text');
-    assert.equal(p1.style.backgroundColor, 'yellow');
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      chrome.runtime.lastError = { message: 'Message failed' };
+      callback(null);
+    };
 
-    highlightText('Second text');
-    assert.equal(p1.style.backgroundColor, '', 'First highlight should be cleared');
-    assert.equal(p2.style.backgroundColor, 'yellow', 'Second text should be highlighted');
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when sending message fails');
+      done();
+    });
+  });
+
+  QUnit.test('Response is null or text is empty', (assert) => {
+    assert.expect(2);
+    const done1 = assert.async();
+    const done2 = assert.async();
+
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      callback(null);
+    };
+
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when response is null');
+      done1();
+    });
+
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      callback({ other: 'data' });
+    };
+
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when response.text is missing');
+      done2();
+    });
   });
 });

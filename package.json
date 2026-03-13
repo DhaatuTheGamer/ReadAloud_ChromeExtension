@@ -1,5 +1,27 @@
 {
-  "dependencies": {
-    "playwright": "^1.58.2"
+  "name": "app",
+  "version": "1.0.0",
+  "description": "A simple, robust Chrome extension that reads the content of a web page aloud using your browser's built-in text-to-speech capabilities.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DhaatuTheGamer/ReadAloud_ChromeExtension.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/DhaatuTheGamer/ReadAloud_ChromeExtension/issues"
+  },
+  "homepage": "https://github.com/DhaatuTheGamer/ReadAloud_ChromeExtension#readme",
+  "devDependencies": {
+    "puppeteer": "^24.39.1"
   }
 }
