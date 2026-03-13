@@ -47,6 +47,13 @@ function getArticleText() {
 
 let highlightedElement = null;
 
+// Escape quotes for XPath string representation
+const escapeQuotes = (str) => {
+    if (!str.includes("'")) return `'${str}'`;
+    if (!str.includes('"')) return `"${str}"`;
+    return `concat('${str.replace(/'/g, "', \"'\", '")}')`;
+};
+
 function highlightText(text) {
     // Remove previous highlight
     if (highlightedElement) {
@@ -58,13 +65,6 @@ function highlightText(text) {
 
     // Find the text on the page and highlight it
     try {
-        // Escape quotes for XPath string representation
-        const escapeQuotes = (str) => {
-            if (!str.includes("'")) return `'${str}'`;
-            if (!str.includes('"')) return `"${str}"`;
-            return `concat('${str.replace(/'/g, "', \"'\", '")}')`;
-        };
-
         const xpath = `//text()[contains(., ${escapeQuotes(text)})]`;
         const result = document.evaluate(xpath, document.body, null, XPathResult.ANY_TYPE, null);
         let node = result.iterateNext();
