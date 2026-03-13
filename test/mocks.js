@@ -24,7 +24,15 @@ window.chrome = {
         });
       }
     },
-    lastError: null
+    lastError: null,
+    sendMessage: (message, callback) => {
+        if (chrome.runtime.sendMessageMock) {
+            chrome.runtime.sendMessageMock(message, callback);
+        } else if (callback) {
+            callback();
+        }
+    },
+    sendMessageMock: null
   },
   commands: {
     onCommand: {
