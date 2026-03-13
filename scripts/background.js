@@ -23,6 +23,27 @@ chrome.runtime.onInstalled.addListener(() => {
 // --- Core Logic ---
 
 /**
+ * Helper function to split a single long sentence into smaller chunks.
+ * @param {string} sentence The long sentence to split.
+ * @param {number} maxChunkSize The maximum allowed chunk size.
+ * @returns {string[]} An array of sub-chunks.
+ */
+function splitLongSentence(sentence, maxChunkSize) {
+  const chunks = [];
+  let remainingSentence = sentence;
+  while (remainingSentence.length > maxChunkSize) {
+    let splitIndex = remainingSentence.lastIndexOf(' ', maxChunkSize);
+    if (splitIndex === -1) splitIndex = maxChunkSize;
+    chunks.push(remainingSentence.substring(0, splitIndex).trim());
+    remainingSentence = remainingSentence.substring(splitIndex).trim();
+  }
+  if (remainingSentence.length > 0) {
+    chunks.push(remainingSentence);
+  }
+  return chunks;
+}
+
+/**
  * Splits text into chunks, prioritizing sentence boundaries for more natural speech.
  * Falls back to a max character limit if a sentence is too long.
  * @param {string} text The full text to be chunked.
@@ -49,17 +70,11 @@ function chunkText(text) {
 
       // If the sentence itself is too long, split it.
       if (sentence.length > maxChunkSize) {
-        let remainingSentence = sentence;
-        while (remainingSentence.length > maxChunkSize) {
-          // Find a good place to split within the maxChunkSize
-          let splitIndex = remainingSentence.lastIndexOf(' ', maxChunkSize);
-          // If no space is found, split at the limit
-          if (splitIndex === -1) splitIndex = maxChunkSize;
-
-          chunks.push(remainingSentence.substring(0, splitIndex).trim());
-          remainingSentence = remainingSentence.substring(splitIndex).trim();
-        }
-        currentChunk = remainingSentence;
+        const subChunks = splitLongSentence(sentence, maxChunkSize);
+        // The last sub-chunk becomes the start of the next chunk.
+        currentChunk = subChunks.pop() || '';
+        // The rest are complete chunks.
+        chunks.push(...subChunks);
       } else {
         // The new sentence becomes the start of the next chunk.
         currentChunk = sentence;
