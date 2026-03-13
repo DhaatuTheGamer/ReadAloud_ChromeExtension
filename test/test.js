@@ -165,3 +165,86 @@ QUnit.module('Text Chunking', () => {
     assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
   });
 });
+
+QUnit.module('injectAndGetText Error Handling', (hooks) => {
+  let originalConsoleError;
+
+  hooks.beforeEach(() => {
+    chrome.runtime.lastError = null;
+    chrome.tabs.sendMessageMock = null;
+    // Suppress console.error during these tests so we don't clutter output
+    originalConsoleError = console.error;
+    console.error = () => {};
+  });
+
+  hooks.afterEach(() => {
+    chrome.runtime.lastError = null;
+    chrome.tabs.sendMessageMock = null;
+    console.error = originalConsoleError;
+  });
+
+  QUnit.test('Happy path: successfully injects and gets text', (assert) => {
+    assert.expect(1);
+    const done = assert.async();
+
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      callback({ text: 'Injected text' });
+    };
+
+    injectAndGetText(1, (text) => {
+      assert.equal(text, 'Injected text', 'Should return the text from the response');
+      done();
+    });
+  });
+
+  QUnit.test('Error during script injection', (assert) => {
+    assert.expect(1);
+    const done = assert.async();
+
+    chrome.runtime.lastError = { message: 'Injection failed' };
+
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when injection fails');
+      done();
+    });
+  });
+
+  QUnit.test('Error during sendMessage', (assert) => {
+    assert.expect(1);
+    const done = assert.async();
+
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      chrome.runtime.lastError = { message: 'Message failed' };
+      callback(null);
+    };
+
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when sending message fails');
+      done();
+    });
+  });
+
+  QUnit.test('Response is null or text is empty', (assert) => {
+    assert.expect(2);
+    const done1 = assert.async();
+    const done2 = assert.async();
+
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      callback(null);
+    };
+
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when response is null');
+      done1();
+    });
+
+    chrome.tabs.sendMessageMock = (tabId, message, callback) => {
+      callback({ other: 'data' });
+    };
+
+    injectAndGetText(1, (text) => {
+      assert.strictEqual(text, null, 'Should return null when response.text is missing');
+      done2();
+    });
+  });
+});
