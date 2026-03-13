@@ -165,3 +165,64 @@ QUnit.module('Text Chunking', () => {
     assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
   });
 });
+
+QUnit.module('Content Script Highlighting', (hooks) => {
+  hooks.beforeEach(() => {
+    // Mock scrollIntoView
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = function() {};
+    }
+    // Clean up fixture
+    document.getElementById('qunit-fixture').innerHTML = '';
+  });
+
+  QUnit.test('Should highlight found text', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+    const p = document.createElement('p');
+    p.textContent = 'This is some text to highlight.';
+    fixture.appendChild(p);
+
+    highlightText('text to highlight');
+
+    assert.equal(p.style.backgroundColor, 'yellow', 'Element containing text should be highlighted');
+  });
+
+  QUnit.test('Should handle special characters in text', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+    const p = document.createElement('p');
+    p.textContent = 'Text with "double quotes" and \'single quotes\'.';
+    fixture.appendChild(p);
+
+    highlightText('with "double quotes" and \'single quotes\'');
+
+    assert.equal(p.style.backgroundColor, 'yellow', 'Element with quotes should be highlighted');
+  });
+
+  QUnit.test('Should handle complex characters', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+    const p = document.createElement('p');
+    p.textContent = 'Special chars: [] () * + ? . \\ ^ $ |';
+    fixture.appendChild(p);
+
+    highlightText('chars: [] () * + ? . \\ ^ $ |');
+
+    assert.equal(p.style.backgroundColor, 'yellow', 'Element with regex/xpath special chars should be highlighted');
+  });
+
+  QUnit.test('Should clear previous highlight', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+    const p1 = document.createElement('p');
+    p1.textContent = 'First text.';
+    const p2 = document.createElement('p');
+    p2.textContent = 'Second text.';
+    fixture.appendChild(p1);
+    fixture.appendChild(p2);
+
+    highlightText('First text');
+    assert.equal(p1.style.backgroundColor, 'yellow');
+
+    highlightText('Second text');
+    assert.equal(p1.style.backgroundColor, '', 'First highlight should be cleared');
+    assert.equal(p2.style.backgroundColor, 'yellow', 'Second text should be highlighted');
+  });
+});
