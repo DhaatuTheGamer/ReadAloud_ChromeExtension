@@ -76,6 +76,21 @@ function populateVoiceListWithRetry(stateVoice) {
   });
 }
 
+/**
+ * Creates a debounced function that delays invoking func until after wait milliseconds
+ * have elapsed since the last time the debounced function was invoked.
+ * @param {Function} func The function to debounce.
+ * @param {number} wait The number of milliseconds to delay.
+ * @returns {Function} Returns the new debounced function.
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
 // --- Event Listeners ---
 
 playPauseButton.addEventListener('click', () => {
@@ -112,13 +127,13 @@ rateInput.addEventListener('input', (e) => {
 
 // This listener sends the final value to the background script only when the user releases the slider.
 // This prevents spamming the background script with messages.
-rateInput.addEventListener('change', (e) => {
+rateInput.addEventListener('change', debounce((e) => {
   chrome.runtime.sendMessage({ action: 'setRate', rate: e.target.value });
-});
+}, 300));
 
-voicesSelect.addEventListener('change', (e) => {
+voicesSelect.addEventListener('change', debounce((e) => {
   chrome.runtime.sendMessage({ action: 'setVoice', voice: e.target.value });
-});
+}, 300));
 
 // --- Initial Popup Setup ---
 document.addEventListener('DOMContentLoaded', () => {
