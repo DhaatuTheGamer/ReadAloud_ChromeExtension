@@ -102,6 +102,28 @@ QUnit.module('Playback Logic', (hooks) => {
     assert.equal(state.playbackState, 'playing', 'State is "playing" again after third toggle');
     assert.ok(chrome.tts.wasResumed, 'chrome.tts.resume() was called');
   });
+
+  QUnit.test('restartPlaybackIfPlaying should restart speech if playing', (assert) => {
+    assert.expect(2);
+    state.playbackState = 'playing';
+    state.chunks = ['Test chunk'];
+    state.chunkIndex = 0;
+
+    restartPlaybackIfPlaying();
+
+    assert.ok(chrome.tts.wasStopped, 'chrome.tts.stop() should have been called');
+    assert.ok(chrome.tts.isSpeaking, 'speak() should have been called and started TTS');
+  });
+
+  QUnit.test('restartPlaybackIfPlaying should NOT restart speech if not playing', (assert) => {
+    assert.expect(2);
+    state.playbackState = 'stopped';
+
+    restartPlaybackIfPlaying();
+
+    assert.notOk(chrome.tts.wasStopped, 'chrome.tts.stop() should NOT have been called');
+    assert.notOk(chrome.tts.isSpeaking, 'speak() should NOT have been called');
+  });
 });
 
 QUnit.module('Text Chunking', () => {
@@ -163,5 +185,84 @@ QUnit.module('Text Chunking', () => {
     const result = chunkText(text);
     // Current implementation preserves spaces between sentences.
     assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
+  });
+});
+
+QUnit.module('Popup UI Logic', (hooks) => {
+  let playPauseBtn, rateInput, rateValueSpan, voicesSelect;
+
+  hooks.beforeEach(() => {
+    playPauseBtn = document.getElementById('play-pause');
+    rateInput = document.getElementById('rate');
+    rateValueSpan = document.getElementById('rate-value');
+    voicesSelect = document.getElementById('voices');
+
+    // Because the elements are outside qunit-fixture, we must manually reset them
+    playPauseBtn.textContent = 'Play';
+    playPauseBtn.classList.remove('playing');
+    rateInput.value = '1';
+    rateValueSpan.textContent = '1.0x';
+    voicesSelect.replaceChildren(); // clear options
+  });
+
+  QUnit.test('updateUI sets Play/Pause button correctly for playing state', (assert) => {
+    const state = { playbackState: 'playing', rate: '1.0' };
+    updateUI(state);
+
+    assert.equal(playPauseBtn.textContent, 'Pause', 'Button text should be "Pause" when playing');
+    assert.ok(playPauseBtn.classList.contains('playing'), 'Button should have "playing" class');
+  });
+
+  QUnit.test('updateUI sets Play/Pause button correctly for paused/stopped state', (assert) => {
+    const state = { playbackState: 'paused', rate: '1.0' };
+    updateUI(state);
+
+    assert.equal(playPauseBtn.textContent, 'Play', 'Button text should be "Play" when paused');
+    assert.notOk(playPauseBtn.classList.contains('playing'), 'Button should not have "playing" class');
+
+    const stateStopped = { playbackState: 'stopped', rate: '1.0' };
+    updateUI(stateStopped);
+
+    assert.equal(playPauseBtn.textContent, 'Play', 'Button text should be "Play" when stopped');
+    assert.notOk(playPauseBtn.classList.contains('playing'), 'Button should not have "playing" class');
+  });
+
+  QUnit.test('updateUI updates rate slider and rate value display', (assert) => {
+    const state = { rate: '1.5' };
+    updateUI(state);
+
+    assert.equal(rateInput.value, '1.5', 'Rate input value should be 1.5');
+    assert.equal(rateValueSpan.textContent, '1.5x', 'Rate value text should be "1.5x"');
+
+    const stateDecimal = { rate: '0.8' };
+    updateUI(stateDecimal);
+
+    assert.equal(rateInput.value, '0.8', 'Rate input value should be 0.8');
+    assert.equal(rateValueSpan.textContent, '0.8x', 'Rate value text should be "0.8x"');
+  });
+
+  QUnit.test('updateUI updates voice selection if options exist', (assert) => {
+    // Add some mock options to the select element
+    const opt1 = document.createElement('option');
+    opt1.value = 'Voice A';
+    const opt2 = document.createElement('option');
+    opt2.value = 'Voice B';
+    voicesSelect.appendChild(opt1);
+    voicesSelect.appendChild(opt2);
+
+    const state = { voice: 'Voice B', rate: '1.0' };
+    updateUI(state);
+
+    assert.equal(voicesSelect.value, 'Voice B', 'Voice select should match the state voice');
+  });
+
+  QUnit.test('updateUI does not throw if voicesSelect options are empty', (assert) => {
+    const state = { voice: 'Voice C', rate: '1.0' };
+
+    // updateUI should handle the empty voicesSelect list safely
+    updateUI(state);
+
+    assert.ok(true, 'updateUI completed without error when voicesSelect is empty');
+    assert.equal(voicesSelect.value, '', 'Voice select should remain unselected/empty');
   });
 });
