@@ -59,27 +59,3 @@ select, .speed-slider {
     color: #777;
     padding: 0 5px;
 }
-
-#resume {
-    display: none;
-}
-
-body.paused #resume {
-    display: inline-block;
-}
-
-body.playing #play-pause {
-    display: inline-block;
-}
-
-#pause {
-    display: none;
-}
-
-body.playing #play {
-    display: none;
-}
-
-body.playing #pause {
-    display: inline-block;
-}
