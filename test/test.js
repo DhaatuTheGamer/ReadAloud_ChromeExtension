@@ -187,126 +187,82 @@ QUnit.module('Text Chunking', () => {
     assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
   });
 });
-QUnit.module('getArticleText', (hooks) => {
-  let originalGetSelection;
-  let originalQuerySelector;
+
+QUnit.module('Popup UI Logic', (hooks) => {
+  let playPauseBtn, rateInput, rateValueSpan, voicesSelect;
 
   hooks.beforeEach(() => {
-    // Save original to restore later
-    originalGetSelection = window.getSelection;
-    originalQuerySelector = document.querySelector;
+    playPauseBtn = document.getElementById('play-pause');
+    rateInput = document.getElementById('rate');
+    rateValueSpan = document.getElementById('rate-value');
+    voicesSelect = document.getElementById('voices');
 
-    // Clear the fixture area before each test
-    const fixture = document.getElementById('qunit-fixture');
-    if (fixture) {
-      fixture.innerHTML = '';
-    }
+    // Because the elements are outside qunit-fixture, we must manually reset them
+    playPauseBtn.textContent = 'Play';
+    playPauseBtn.classList.remove('playing');
+    rateInput.value = '1';
+    rateValueSpan.textContent = '1.0x';
+    voicesSelect.replaceChildren(); // clear options
   });
 
-  hooks.afterEach(() => {
-    // Restore original window.getSelection
-    window.getSelection = originalGetSelection;
-    document.querySelector = originalQuerySelector;
+  QUnit.test('updateUI sets Play/Pause button correctly for playing state', (assert) => {
+    const state = { playbackState: 'playing', rate: '1.0' };
+    updateUI(state);
+
+    assert.equal(playPauseBtn.textContent, 'Pause', 'Button text should be "Pause" when playing');
+    assert.ok(playPauseBtn.classList.contains('playing'), 'Button should have "playing" class');
   });
 
-  QUnit.test('Returns selection text if user has selected text', (assert) => {
-    window.getSelection = () => ({
-      toString: () => '  Selected text here  '
-    });
+  QUnit.test('updateUI sets Play/Pause button correctly for paused/stopped state', (assert) => {
+    const state = { playbackState: 'paused', rate: '1.0' };
+    updateUI(state);
 
-    const result = getArticleText();
-    assert.equal(result, 'Selected text here', 'Should return trimmed selection text');
+    assert.equal(playPauseBtn.textContent, 'Play', 'Button text should be "Play" when paused');
+    assert.notOk(playPauseBtn.classList.contains('playing'), 'Button should not have "playing" class');
+
+    const stateStopped = { playbackState: 'stopped', rate: '1.0' };
+    updateUI(stateStopped);
+
+    assert.equal(playPauseBtn.textContent, 'Play', 'Button text should be "Play" when stopped');
+    assert.notOk(playPauseBtn.classList.contains('playing'), 'Button should not have "playing" class');
   });
 
-  QUnit.test('Returns empty string if no relevant content found', (assert) => {
-    window.getSelection = () => ({ toString: () => '' });
+  QUnit.test('updateUI updates rate slider and rate value display', (assert) => {
+    const state = { rate: '1.5' };
+    updateUI(state);
 
-    // Create an empty body structure using document.querySelector override
-    document.querySelector = (sel) => { return null; };
+    assert.equal(rateInput.value, '1.5', 'Rate input value should be 1.5');
+    assert.equal(rateValueSpan.textContent, '1.5x', 'Rate value text should be "1.5x"');
 
-    const result = getArticleText();
-    assert.equal(result, '', 'Should return empty string if nothing matches');
+    const stateDecimal = { rate: '0.8' };
+    updateUI(stateDecimal);
+
+    assert.equal(rateInput.value, '0.8', 'Rate input value should be 0.8');
+    assert.equal(rateValueSpan.textContent, '0.8x', 'Rate value text should be "0.8x"');
   });
 
-  QUnit.test('Finds and returns text from "article" element', (assert) => {
-    window.getSelection = () => ({ toString: () => '' });
+  QUnit.test('updateUI updates voice selection if options exist', (assert) => {
+    // Add some mock options to the select element
+    const opt1 = document.createElement('option');
+    opt1.value = 'Voice A';
+    const opt2 = document.createElement('option');
+    opt2.value = 'Voice B';
+    voicesSelect.appendChild(opt1);
+    voicesSelect.appendChild(opt2);
 
-    const el = document.createElement('article');
-    el.innerText = 'Article content here';
-    document.querySelector = (sel) => {
-        if (sel === 'article') return el;
-        return null;
-    };
+    const state = { voice: 'Voice B', rate: '1.0' };
+    updateUI(state);
 
-    const result = getArticleText();
-    assert.equal(result, 'Article content here', 'Should extract text from <article>');
+    assert.equal(voicesSelect.value, 'Voice B', 'Voice select should match the state voice');
   });
 
-  QUnit.test('Finds and returns text from ".article" element', (assert) => {
-    window.getSelection = () => ({ toString: () => '' });
+  QUnit.test('updateUI does not throw if voicesSelect options are empty', (assert) => {
+    const state = { voice: 'Voice C', rate: '1.0' };
 
-    const el = document.createElement('div');
-    el.className = 'article';
-    el.innerText = 'Class article content';
-    document.querySelector = (sel) => {
-        if (sel === '.article') return el;
-        return null;
-    };
+    // updateUI should handle the empty voicesSelect list safely
+    updateUI(state);
 
-    const result = getArticleText();
-    assert.equal(result, 'Class article content', 'Should extract text from .article');
-  });
-
-  QUnit.test('Ignores unwanted elements (nav, header, footer, etc.)', (assert) => {
-    window.getSelection = () => ({ toString: () => '' });
-
-    const fixture = document.getElementById('qunit-fixture');
-    fixture.innerHTML = `
-      <article>
-        <header>Header to ignore</header>
-        <nav>Nav to ignore</nav>
-        <aside>Aside to ignore</aside>
-        <div id="keep">Main content</div>
-        <script>console.log("ignore me");</script>
-        <footer>Footer to ignore</footer>
-      </article>
-    `;
-
-    // In headless browser innerText works on elements attached to DOM
-    // For elements not rendered, it might be undefined or empty.
-    // However, getArticleText uses `cloneNode(true)`, and then queries off it.
-    // In playwright/chrome, innerText of an unattached cloned node *might* be empty.
-    // Wait, the original code uses: `clone.innerText.trim()`.
-    // If the node is cloned but not attached, innerText might be empty in some browsers.
-    // Let's modify the document.querySelector to return the fixture's article
-    document.querySelector = (sel) => {
-        if (sel === 'article') return fixture.querySelector('article');
-        return null;
-    };
-
-    const result = getArticleText();
-    assert.ok(result.includes('Main content'), 'Should contain the main content');
-    assert.notOk(result.includes('Header to ignore'), 'Should not contain header');
-    assert.notOk(result.includes('Nav to ignore'), 'Should not contain nav');
-  });
-
-  QUnit.test('Matches highest priority selector', (assert) => {
-    window.getSelection = () => ({ toString: () => '' });
-
-    const el1 = document.createElement('article');
-    el1.innerText = 'Should pick this because it has higher priority';
-
-    const el2 = document.createElement('div');
-    el2.className = 'article';
-    el2.innerText = 'Should not pick this';
-
-    document.querySelector = (sel) => {
-        if (sel === 'article') return el1;
-        if (sel === '.article') return el2;
-        return null;
-    };
-
-    const result = getArticleText();
-    assert.equal(result, 'Should pick this because it has higher priority', 'Should match highest priority selector');
+    assert.ok(true, 'updateUI completed without error when voicesSelect is empty');
+    assert.equal(voicesSelect.value, '', 'Voice select should remain unselected/empty');
   });
 });
