@@ -102,6 +102,28 @@ QUnit.module('Playback Logic', (hooks) => {
     assert.equal(state.playbackState, 'playing', 'State is "playing" again after third toggle');
     assert.ok(chrome.tts.wasResumed, 'chrome.tts.resume() was called');
   });
+
+  QUnit.test('restartPlaybackIfPlaying should restart speech if playing', (assert) => {
+    assert.expect(2);
+    state.playbackState = 'playing';
+    state.chunks = ['Test chunk'];
+    state.chunkIndex = 0;
+
+    restartPlaybackIfPlaying();
+
+    assert.ok(chrome.tts.wasStopped, 'chrome.tts.stop() should have been called');
+    assert.ok(chrome.tts.isSpeaking, 'speak() should have been called and started TTS');
+  });
+
+  QUnit.test('restartPlaybackIfPlaying should NOT restart speech if not playing', (assert) => {
+    assert.expect(2);
+    state.playbackState = 'stopped';
+
+    restartPlaybackIfPlaying();
+
+    assert.notOk(chrome.tts.wasStopped, 'chrome.tts.stop() should NOT have been called');
+    assert.notOk(chrome.tts.isSpeaking, 'speak() should NOT have been called');
+  });
 });
 
 QUnit.module('Text Chunking', () => {
