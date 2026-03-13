@@ -357,3 +357,95 @@ QUnit.module('Popup UI Logic', (hooks) => {
     }
   });
 });
+
+QUnit.module('Voice List Population', (hooks) => {
+  let voicesSelect;
+
+  hooks.beforeEach(() => {
+    voicesSelect = document.getElementById('voices');
+    voicesSelect.replaceChildren(); // clear options
+    chrome.tts.reset();
+  });
+
+  hooks.afterEach(() => {
+    if (sinon) {
+      sinon.restore();
+    }
+  });
+
+  QUnit.test('Immediate success populates voices and selects default', async (assert) => {
+    assert.expect(3);
+
+    // Default mock behavior returns Mock Voice 1 and Mock Voice 2
+    await populateVoiceListWithRetry(null);
+
+    assert.equal(voicesSelect.options.length, 2, 'Should populate with 2 options');
+    assert.equal(voicesSelect.options[0].value, 'Mock Voice 1', 'First option should be Mock Voice 1');
+    assert.equal(voicesSelect.value, 'Mock Voice 1', 'Should select the first voice by default');
+  });
+
+  QUnit.test('Selects stateVoice when available', async (assert) => {
+    assert.expect(2);
+
+    await populateVoiceListWithRetry('Mock Voice 2');
+
+    assert.equal(voicesSelect.options.length, 2, 'Should populate with 2 options');
+    assert.equal(voicesSelect.value, 'Mock Voice 2', 'Should select the provided stateVoice');
+  });
+
+  QUnit.test('Retry logic populates successfully after delayed empty responses', async (assert) => {
+    assert.expect(4);
+    const clock = sinon.useFakeTimers();
+
+    let callCount = 0;
+    chrome.tts.getVoicesMock = (callback) => {
+      callCount++;
+      if (callCount < 3) {
+        callback([]);
+      } else {
+        callback([{ voiceName: 'Delayed Voice', lang: 'en-US' }]);
+      }
+    };
+
+    const promise = populateVoiceListWithRetry(null);
+
+    clock.tick(200); // Attempt 2
+    clock.tick(200); // Attempt 3
+
+    await promise;
+
+    assert.equal(callCount, 3, 'Should have called getVoices 3 times');
+    assert.equal(voicesSelect.options.length, 1, 'Should populate with 1 option after retries');
+    assert.equal(voicesSelect.options[0].value, 'Delayed Voice', 'Option should be Delayed Voice');
+    assert.equal(voicesSelect.value, 'Delayed Voice', 'Should select the voice');
+    clock.restore();
+  });
+
+  QUnit.test('Timeout logic rejects after max retries', async (assert) => {
+    assert.expect(2);
+    const clock = sinon.useFakeTimers();
+
+    let callCount = 0;
+    chrome.tts.getVoicesMock = (callback) => {
+      callCount++;
+      callback([]); // Always return empty
+    };
+
+    const promise = populateVoiceListWithRetry(null);
+
+    // Original code says attempts < 5, starting at 0. So it retries 5 times.
+    clock.tick(1000); // 5 * 200ms
+
+    // Need one more tick for the final reject to be triggered or simply awaiting the promise handles the microtasks
+    // Actually, when tick is called, all setTimeouts are executed. The final one will call reject.
+
+    try {
+      await promise;
+      assert.ok(false, 'Should have rejected');
+    } catch (err) {
+      assert.equal(callCount, 6, 'Should have called getVoices 6 times (1 initial + 5 retries)');
+      assert.equal(err.message, 'Timeout waiting for voices', 'Should reject with timeout error');
+    }
+    clock.restore();
+  });
+});

@@ -93,6 +93,18 @@ window.chrome = {
       chrome.tts.isSpeaking = false;
       chrome.tts.wasStopped = true;
     },
+    getVoices: (callback) => {
+      if (chrome.tts.getVoicesMock) {
+        chrome.tts.getVoicesMock(callback);
+      } else {
+        // Default mock behavior
+        callback([
+          { voiceName: 'Mock Voice 1', lang: 'en-US' },
+          { voiceName: 'Mock Voice 2', lang: 'en-GB' }
+        ]);
+      }
+    },
+    getVoicesMock: null,
     // --- Test-specific state ---
     isSpeaking: false,
     wasPaused: false,
@@ -108,6 +120,7 @@ window.chrome = {
         chrome.tts.wasStopped = false;
         chrome.tts.lastSpokenText = null;
         chrome.tts.lastOptions = null;
+        chrome.tts.getVoicesMock = null;
     }
   },
   tabs: {
