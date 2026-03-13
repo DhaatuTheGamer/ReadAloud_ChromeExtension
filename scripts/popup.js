@@ -36,6 +36,7 @@ function updateUI(state) {
 // Expose internal functions for testing
 if (typeof window !== 'undefined') {
     window.updateUI = updateUI;
+    window.debounce = debounce;
 }
 
 /**
