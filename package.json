@@ -21,8 +21,8 @@
     "url": "https://github.com/DhaatuTheGamer/ReadAloud_ChromeExtension/issues"
   },
   "homepage": "https://github.com/DhaatuTheGamer/ReadAloud_ChromeExtension#readme",
-  "devDependencies": {
+  "dependencies": {
     "jsdom": "^28.1.0",
-    "puppeteer": "^24.39.1"
+    "playwright": "^1.58.2"
   }
 }

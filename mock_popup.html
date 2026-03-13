@@ -1,0 +1,44 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+             body { width: 300px; padding: 10px; font-family: sans-serif; }
+             select { width: 100%; padding: 5px; margin-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <h3>Read Aloud Extension</h3>
+          <p>Voices:</p>
+          <select id="voices"></select>
+          <button id="play-pause">Play</button>
+          <button id="stop">Stop</button>
+          <input type="range" id="rate" min="0.5" max="2.0" step="0.1" value="1.0">
+          <span id="rate-value">1.0x</span>
+
+          <script>
+            // Mock Chrome API
+            window.chrome = {
+              tts: {
+                getVoices: (cb) => {
+                  cb([
+                    { voiceName: 'Google US English', lang: 'en-US' },
+                    { voiceName: 'Google UK English Female', lang: 'en-GB' },
+                    { voiceName: 'Google Español', lang: 'es-ES' }
+                  ]);
+                }
+              },
+              runtime: {
+                sendMessage: (msg, cb) => {
+                  if (msg.action === 'getState') {
+                    cb({ playbackState: 'stopped', rate: 1.0, voice: 'Google US English' });
+                  } else if (msg.action === 'setVoice') {
+                    console.log('Voice set to:', msg.voice);
+                  }
+                }
+              }
+            };
+          </script>
+          <script src="scripts/popup.js"></script>
+        </body>
+        </html>

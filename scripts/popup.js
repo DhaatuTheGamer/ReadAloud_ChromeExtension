@@ -60,12 +60,14 @@ function populateVoiceListWithRetry(stateVoice) {
         }
         
         voicesSelect.replaceChildren(); // Clear any existing options
+        const fragment = document.createDocumentFragment();
         voices.forEach(voice => {
           const option = document.createElement('option');
           option.textContent = `${voice.voiceName} (${voice.lang})`;
           option.value = voice.voiceName;
-          voicesSelect.appendChild(option);
+          fragment.appendChild(option);
         });
+        voicesSelect.appendChild(fragment);
 
         // Select the stored voice if available, otherwise default to the first voice
         if (stateVoice) {
