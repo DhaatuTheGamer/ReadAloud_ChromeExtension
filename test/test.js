@@ -247,4 +247,95 @@ QUnit.module('Content Script Highlighting', (hooks) => {
     assert.equal(p1.style.backgroundColor, '', 'First highlight should be cleared');
     assert.equal(p2.style.backgroundColor, 'yellow', 'Second text should be highlighted');
   });
+
+  QUnit.test('Should handle null or empty text gracefully', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+    const p = document.createElement('p');
+    p.textContent = 'Some text.';
+    fixture.appendChild(p);
+
+    // First highlight something
+    highlightText('Some text.');
+    assert.equal(p.style.backgroundColor, 'yellow', 'Text is highlighted initially');
+
+    // Then call with empty text
+    highlightText('');
+    assert.equal(p.style.backgroundColor, '', 'Highlight should be cleared on empty text');
+
+    // Highlight again
+    highlightText('Some text.');
+    assert.equal(p.style.backgroundColor, 'yellow', 'Text is highlighted again');
+
+    // Then call with null
+    highlightText(null);
+    assert.equal(p.style.backgroundColor, '', 'Highlight should be cleared on null text');
+  });
+
+  QUnit.test('Should ignore text in SCRIPT, STYLE, and NOSCRIPT tags', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+
+    const script = document.createElement('script');
+    script.textContent = '// hidden script text';
+    fixture.appendChild(script);
+
+    const style = document.createElement('style');
+    style.textContent = '.hidden { content: "hidden style text"; }';
+    fixture.appendChild(style);
+
+    const noscript = document.createElement('noscript');
+    noscript.textContent = 'hidden noscript text';
+    fixture.appendChild(noscript);
+
+    highlightText('hidden script text');
+    assert.notEqual(script.style.backgroundColor, 'yellow', 'Should not highlight inside <script>');
+
+    highlightText('hidden style text');
+    assert.notEqual(style.style.backgroundColor, 'yellow', 'Should not highlight inside <style>');
+
+    highlightText('hidden noscript text');
+    assert.notEqual(noscript.style.backgroundColor, 'yellow', 'Should not highlight inside <noscript>');
+  });
+
+  QUnit.test('Should not throw when text is not found', (assert) => {
+    const fixture = document.getElementById('qunit-fixture');
+    const p = document.createElement('p');
+    p.textContent = 'Visible text.';
+    fixture.appendChild(p);
+
+    // Should not throw an error
+    highlightText('Non-existent text');
+    assert.ok(true, 'Did not throw an exception when text was not found');
+  });
+
+  QUnit.test('Should catch and log exceptions during DOM search', (assert) => {
+    const originalCreateTreeWalker = document.createTreeWalker;
+    const originalConsoleError = console.error;
+    let errorLogged = false;
+
+    // Mock createTreeWalker to throw (actual implementation uses this)
+    document.createTreeWalker = function() {
+      throw new Error('Simulated TreeWalker error');
+    };
+
+    // Mock document.evaluate to throw (rationale suggests this might be used)
+    const originalEvaluate = document.evaluate;
+    document.evaluate = function() {
+      throw new Error('Simulated evaluate error');
+    };
+
+    // Mock console.error
+    console.error = function() {
+      errorLogged = true;
+    };
+
+    try {
+      highlightText('Some text');
+      assert.ok(errorLogged, 'console.error should have been called');
+    } finally {
+      // Restore originals
+      document.createTreeWalker = originalCreateTreeWalker;
+      document.evaluate = originalEvaluate;
+      console.error = originalConsoleError;
+    }
+  });
 });
