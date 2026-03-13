@@ -462,4 +462,49 @@ QUnit.module('Popup UI Logic', (hooks) => {
       console.error = originalConsoleError;
     }
   });
+
+  QUnit.test('populateVoiceListWithRetry populates voices and selects stateVoice', async (assert) => {
+    // The default mock returns ['Voice A', 'Voice B']
+    await populateVoiceListWithRetry('Voice B');
+
+    assert.equal(voicesSelect.options.length, 2, 'Should have 2 voice options');
+    assert.equal(voicesSelect.options[0].value, 'Voice A', 'First option is Voice A');
+    assert.equal(voicesSelect.options[1].value, 'Voice B', 'Second option is Voice B');
+    assert.equal(voicesSelect.value, 'Voice B', 'stateVoice (Voice B) should be selected');
+  });
+
+  QUnit.test('populateVoiceListWithRetry retries on empty response', async (assert) => {
+    let callCount = 0;
+    chrome.tts.getVoicesMock = (callback) => {
+      callCount++;
+      if (callCount < 3) {
+        callback([]); // Empty response for first 2 calls
+      } else {
+        callback([{ voiceName: 'Voice C', lang: 'en' }]); // Success on 3rd call
+      }
+    };
+
+    await populateVoiceListWithRetry(null);
+
+    assert.equal(callCount, 3, 'Should retry until it gets voices (3 calls)');
+    assert.equal(voicesSelect.options.length, 1, 'Should have 1 voice option');
+    assert.equal(voicesSelect.options[0].value, 'Voice C', 'Option is Voice C');
+    assert.equal(voicesSelect.value, 'Voice C', 'Default voice should be selected');
+  });
+
+  QUnit.test('populateVoiceListWithRetry rejects after timeout/max attempts', async (assert) => {
+    let callCount = 0;
+    chrome.tts.getVoicesMock = (callback) => {
+      callCount++;
+      callback([]); // Always return empty
+    };
+
+    try {
+      await populateVoiceListWithRetry(null);
+      assert.notOk(true, 'Promise should have rejected');
+    } catch (error) {
+      assert.equal(error.message, 'Timeout waiting for voices', 'Should reject with timeout error');
+      assert.equal(callCount, 6, 'Should attempt 6 times (1 initial + 5 retries)');
+    }
+  });
 });

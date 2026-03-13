@@ -24,6 +24,12 @@ window.chrome = {
         });
       }
     },
+    sendMessage: (message, callback) => {
+      // Basic mock for chrome.runtime.sendMessage to avoid errors in popup.js
+      if (callback) {
+        callback({ playbackState: 'stopped', rate: 1, voice: null });
+      }
+    },
     lastError: null
   },
   commands: {
@@ -93,6 +99,16 @@ window.chrome = {
       chrome.tts.isSpeaking = false;
       chrome.tts.wasStopped = true;
     },
+    getVoices: (callback) => {
+      if (chrome.tts.getVoicesMock) {
+        chrome.tts.getVoicesMock(callback);
+      } else {
+        callback([
+          { voiceName: 'Voice A', lang: 'en-US' },
+          { voiceName: 'Voice B', lang: 'en-GB' }
+        ]);
+      }
+    },
     // --- Test-specific state ---
     isSpeaking: false,
     wasPaused: false,
@@ -100,6 +116,7 @@ window.chrome = {
     wasStopped: false,
     lastSpokenText: null,
     lastOptions: null,
+    getVoicesMock: null,
     // Helper to reset state between tests
     reset: () => {
         chrome.tts.isSpeaking = false;
@@ -108,6 +125,7 @@ window.chrome = {
         chrome.tts.wasStopped = false;
         chrome.tts.lastSpokenText = null;
         chrome.tts.lastOptions = null;
+        chrome.tts.getVoicesMock = null;
     }
   },
   tabs: {
