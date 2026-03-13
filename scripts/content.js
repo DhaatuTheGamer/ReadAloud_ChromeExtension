@@ -58,19 +58,10 @@ function highlightText(text) {
 
     // Find the text on the page and highlight it
     try {
-        // Escape quotes for XPath string representation
-        const escapeQuotes = (str) => {
-            if (!str.includes("'")) return `'${str}'`;
-            if (!str.includes('"')) return `"${str}"`;
-            return `concat('${str.replace(/'/g, "', \"'\", '")}')`;
-        };
-
-        const xpath = `//text()[contains(., ${escapeQuotes(text)})]`;
-        const result = document.evaluate(xpath, document.body, null, XPathResult.ANY_TYPE, null);
-        let node = result.iterateNext();
-        while (node) {
-            // verify it actually has the exact text (or just relying on contains).
-            // XPath contains is case-sensitive, just like indexOf.
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while ((node = walker.nextNode())) {
+            // verify it actually has the exact text
             const index = node.nodeValue.indexOf(text);
             if (index !== -1) {
                 const parent = node.parentElement;
@@ -81,18 +72,22 @@ function highlightText(text) {
                     break;
                 }
             }
-            node = result.iterateNext();
         }
     } catch (e) {
         console.error("Highlight search failed", e);
     }
 }
 
+// Expose highlightText globally for testing
+window.highlightText = highlightText;
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "getText") {
-        sendResponse({ text: getArticleText() });
-    } else if (request.action === "highlight") {
-        highlightText(request.text);
-    }
-});
+
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === "getText") {
+            sendResponse({ text: getArticleText() });
+        } else if (request.action === "highlight") {
+            highlightText(request.text);
+        }
+    });
+}
