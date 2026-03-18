@@ -78,12 +78,6 @@ function populateVoiceListWithRetry(stateVoice) {
   });
 }
 
-// Expose internal functions for testing
-if (typeof window !== 'undefined') {
-    window.updateUI = updateUI;
-    window.populateVoiceListWithRetry = populateVoiceListWithRetry;
-}
-
 /**
  * Creates a debounced function that delays invoking func until after wait milliseconds
  * have elapsed since the last time the debounced function was invoked.
@@ -97,6 +91,13 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
+}
+
+// Expose internal functions for testing
+if (typeof window !== 'undefined') {
+    window.updateUI = updateUI;
+    window.populateVoiceListWithRetry = populateVoiceListWithRetry;
+    window.debounce = debounce;
 }
 
 // --- Event Listeners ---

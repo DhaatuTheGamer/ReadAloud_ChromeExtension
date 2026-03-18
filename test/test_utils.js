@@ -132,3 +132,87 @@ QUnit.module('injectAndGetText', (hooks) => {
         });
     });
 });
+
+QUnit.module('debounce', (hooks) => {
+    let clock;
+
+    hooks.beforeEach(() => {
+        clock = sinon.useFakeTimers();
+    });
+
+    hooks.afterEach(() => {
+        clock.restore();
+    });
+
+    QUnit.test('should delay function execution', (assert) => {
+        let callCount = 0;
+        const debounced = debounce(() => {
+            callCount++;
+        }, 100);
+
+        debounced();
+        assert.equal(callCount, 0, 'Function should not be called immediately');
+
+        clock.tick(50);
+        assert.equal(callCount, 0, 'Function should not be called before wait time');
+
+        clock.tick(50);
+        assert.equal(callCount, 1, 'Function should be called after wait time');
+    });
+
+    QUnit.test('should only execute once for multiple calls within wait time', (assert) => {
+        let callCount = 0;
+        const debounced = debounce(() => {
+            callCount++;
+        }, 100);
+
+        debounced();
+        debounced();
+        debounced();
+
+        clock.tick(100);
+        assert.equal(callCount, 1, 'Function should be called only once');
+    });
+
+    QUnit.test('should restart timer on subsequent calls', (assert) => {
+        let callCount = 0;
+        const debounced = debounce(() => {
+            callCount++;
+        }, 100);
+
+        debounced();
+        clock.tick(50);
+        debounced(); // Should reset timer
+        clock.tick(60); // Total 110ms from first call, but only 60ms from second
+        assert.equal(callCount, 0, 'Function should not be called yet');
+
+        clock.tick(40); // Total 100ms from second call
+        assert.equal(callCount, 1, 'Function should be called after reset wait time');
+    });
+
+    QUnit.test('should pass arguments to the original function', (assert) => {
+        let receivedArgs;
+        const debounced = debounce((...args) => {
+            receivedArgs = args;
+        }, 100);
+
+        debounced('arg1', 'arg2');
+        clock.tick(100);
+
+        assert.deepEqual(receivedArgs, ['arg1', 'arg2'], 'Arguments should be passed correctly');
+    });
+
+    QUnit.test('should preserve the "this" context', (assert) => {
+        let context;
+        const obj = {
+            method: debounce(function() {
+                context = this;
+            }, 100)
+        };
+
+        obj.method();
+        clock.tick(100);
+
+        assert.strictEqual(context, obj, '"this" should point to the object the method was called on');
+    });
+});
