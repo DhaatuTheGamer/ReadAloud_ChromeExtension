@@ -112,7 +112,8 @@ function speak() {
     onEvent: (event) => {
       if (event.type === 'end' || event.type === 'interrupted' || event.type === 'cancelled') {
         if (state.tabId) {
-          chrome.tabs.sendMessage(state.tabId, { action: 'highlight', text: '' }).catch(() => {});
+          chrome.tabs.sendMessage(state.tabId, { action: 'highlight', text: '' })
+            .catch(err => console.error('Error sending highlight message:', err));
         }
         if (event.type === 'end' && state.playbackState === 'playing') {
           state.chunkIndex++;
@@ -133,7 +134,8 @@ function speak() {
     }
     // After speaking starts, send message to highlight
     if (state.tabId) {
-      chrome.tabs.sendMessage(state.tabId, { action: 'highlight', text: chunk }).catch(() => {});
+      chrome.tabs.sendMessage(state.tabId, { action: 'highlight', text: chunk })
+        .catch(err => console.error('Error sending highlight message:', err));
     }
   });
 }
