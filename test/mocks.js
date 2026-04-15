@@ -110,7 +110,6 @@ window.chrome = {
         ]);
       }
     },
-    getVoicesMock: null,
     // --- Test-specific state ---
     isSpeaking: false,
     wasPaused: false,

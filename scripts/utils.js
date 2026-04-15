@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars -- consumed via importScripts() in background.js and popup.html
 function injectAndGetText(tabId, callback) {
     chrome.scripting.executeScript({
         target: { tabId: tabId },
