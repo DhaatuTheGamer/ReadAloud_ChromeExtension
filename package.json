@@ -1,6 +1,6 @@
 {
   "name": "read-aloud-chrome-extension",
-  "version": "1.0.0",
+  "version": "4.0.0",
   "description": "A simple, robust Chrome extension that reads the content of a web page aloud using your browser's built-in text-to-speech capabilities.",
   "scripts": {
     "lint": "eslint .",

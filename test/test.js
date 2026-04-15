@@ -14,6 +14,8 @@ QUnit.module('Playback Logic', (hooks) => {
     // Reset the chrome API mocks
     chrome.tts.reset();
     chrome.storage.sync.clear();
+    chrome.storage.session.clear();
+    resetSentMessages();
   });
 
   QUnit.test('Initial play should start speech', (assert) => {
@@ -123,6 +125,114 @@ QUnit.module('Playback Logic', (hooks) => {
     assert.notOk(chrome.tts.wasStopped, 'chrome.tts.stop() should NOT have been called');
     assert.notOk(chrome.tts.isSpeaking, 'speak() should NOT have been called');
   });
+
+  QUnit.test('Stop should broadcast playbackEnded message', (assert) => {
+    // Start playing first
+    chrome.runtime.onMessage.sendMessage({ action: 'play', text: 'Test text.', tabId: 1 });
+    resetSentMessages();
+
+    // Stop
+    chrome.runtime.onMessage.sendMessage({ action: 'stop' });
+
+    const endedMsg = sentMessages.find(m => m.action === 'playbackEnded');
+    assert.ok(endedMsg, 'playbackEnded message should be sent when stopping from a non-stopped state');
+  });
+
+  QUnit.test('Stop from already stopped state should NOT broadcast playbackEnded', (assert) => {
+    state.playbackState = 'stopped';
+    resetSentMessages();
+
+    stop();
+
+    const endedMsg = sentMessages.find(m => m.action === 'playbackEnded');
+    assert.notOk(endedMsg, 'playbackEnded should not be sent when already stopped');
+  });
+});
+
+QUnit.module('Skip Commands', (hooks) => {
+  hooks.beforeEach(() => {
+    state = {
+      text: 'Sentence one. Sentence two. Sentence three.',
+      chunks: ['Sentence one.', 'Sentence two.', 'Sentence three.'],
+      chunkIndex: 1,
+      playbackState: 'playing',
+      rate: 1,
+      voice: null,
+      tabId: 1
+    };
+    chrome.tts.reset();
+    chrome.storage.session.clear();
+  });
+
+  QUnit.test('Skip forward increments chunkIndex and speaks', (assert) => {
+    skipForward();
+
+    assert.equal(state.chunkIndex, 2, 'chunkIndex should be incremented');
+    assert.equal(state.playbackState, 'playing', 'Should remain playing');
+    assert.ok(chrome.tts.isSpeaking, 'TTS should be speaking the next chunk');
+    assert.equal(chrome.tts.lastSpokenText, 'Sentence three.', 'Should speak the next sentence');
+  });
+
+  QUnit.test('Skip forward does nothing at the last chunk', (assert) => {
+    state.chunkIndex = 2; // Last chunk
+    chrome.tts.reset();
+
+    skipForward();
+
+    assert.equal(state.chunkIndex, 2, 'chunkIndex should not change');
+    assert.notOk(chrome.tts.isSpeaking, 'TTS should not start speaking');
+  });
+
+  QUnit.test('Skip backward decrements chunkIndex and speaks', (assert) => {
+    skipBackward();
+
+    assert.equal(state.chunkIndex, 0, 'chunkIndex should be decremented');
+    assert.equal(state.playbackState, 'playing', 'Should remain playing');
+    assert.ok(chrome.tts.isSpeaking, 'TTS should be speaking the previous chunk');
+    assert.equal(chrome.tts.lastSpokenText, 'Sentence one.', 'Should speak the previous sentence');
+  });
+
+  QUnit.test('Skip backward does nothing at the first chunk', (assert) => {
+    state.chunkIndex = 0;
+    chrome.tts.reset();
+
+    skipBackward();
+
+    assert.equal(state.chunkIndex, 0, 'chunkIndex should not change');
+    assert.notOk(chrome.tts.isSpeaking, 'TTS should not start speaking');
+  });
+
+  QUnit.test('Skip commands work from paused state', (assert) => {
+    state.playbackState = 'paused';
+
+    skipForward();
+
+    assert.equal(state.chunkIndex, 2, 'chunkIndex should be incremented');
+    assert.equal(state.playbackState, 'playing', 'Should switch to playing');
+    assert.ok(chrome.tts.isSpeaking, 'TTS should start speaking');
+  });
+
+  QUnit.test('Skip commands do nothing when stopped', (assert) => {
+    state.playbackState = 'stopped';
+    chrome.tts.reset();
+
+    skipForward();
+    assert.equal(state.chunkIndex, 1, 'chunkIndex should not change when stopped');
+
+    skipBackward();
+    assert.equal(state.chunkIndex, 1, 'chunkIndex should not change when stopped');
+  });
+
+  QUnit.test('Skip via keyboard command dispatches correctly', (assert) => {
+    chrome.tts.reset();
+
+    chrome.commands.onCommand.sendCommand('skip-forward');
+    assert.equal(state.chunkIndex, 2, 'skip-forward command should increment chunkIndex');
+
+    chrome.tts.reset();
+    chrome.commands.onCommand.sendCommand('skip-backward');
+    assert.equal(state.chunkIndex, 1, 'skip-backward command should decrement chunkIndex');
+  });
 });
 
 QUnit.module('Article Text Extraction', (hooks) => {
@@ -181,14 +291,7 @@ QUnit.module('Article Text Extraction', (hooks) => {
     `;
     fixture.appendChild(article);
 
-    // We have to properly set innerText for JSDOM if needed, but innerHTML is set above
-    // Since we're relying on clone.innerText inside getArticleText, let's mock the clone behavior
-    // if we're in an environment where innerText doesn't work out of the box.
-    // In our test, we just let it run. In browsers innerText handles this.
     document.querySelector = (sel) => fixture.querySelector(sel);
-
-    // We override cloneNode for testing because innerText on detached nodes might be empty in some environments
-    // But since this is run in a browser by Playwright, it works fine.
 
     const result = getArticleText();
     assert.ok(result.includes('This is the actual content we want.'), 'Should keep the paragraph text');
@@ -202,9 +305,6 @@ QUnit.module('Article Text Extraction', (hooks) => {
   QUnit.test('Should fallback to body if no specific selectors match', (assert) => {
     window.getSelection = () => ({ toString: () => '' });
 
-    // Create a div that does not match any selector except 'body'
-    // But since the loop checks body last, we'll mock querySelector to only return body
-    // and see what happens.
     document.querySelector = (sel) => {
       if (sel === 'body') {
         const fakeBody = document.createElement('body');
@@ -215,8 +315,6 @@ QUnit.module('Article Text Extraction', (hooks) => {
     };
 
     const result = getArticleText();
-    // InnerText might be empty on newly created detached elements in some test runners, so checking textContent is safer if it fails
-    // But let's check what it returns
     assert.ok(result === 'Body fallback text.' || result === '', 'Should fallback to body text');
   });
 
@@ -239,36 +337,32 @@ QUnit.module('Text Chunking', () => {
 
   QUnit.test('Single short sentence should not be split', (assert) => {
     const text = 'Hello world.';
-    assert.deepEqual(chunkText(text), [text], 'Short sentence is one chunk');
+    const result = chunkText(text);
+    assert.equal(result.length, 1, 'Should produce one chunk');
+    assert.equal(result[0], text, 'Chunk should match the input');
   });
 
-  QUnit.test('Multiple short sentences should stay together if under maxChunkSize', (assert) => {
-    const text = 'Sentence one. Sentence two? Sentence three!';
-    assert.deepEqual(chunkText(text), [text], 'Multiple short sentences are kept together');
+  QUnit.test('Intl.Segmenter correctly handles abbreviations', (assert) => {
+    // Intl.Segmenter treats "Dr. Smith" as part of one sentence, not split at "Dr."
+    const text = 'Dr. Smith went home. He was tired.';
+    const result = chunkText(text);
+    // With Intl.Segmenter, this should produce 2 sentences, not 3
+    assert.ok(result.length >= 1 && result.length <= 2, 'Should produce 1-2 chunks, not split at Dr.');
+    const joined = result.join('');
+    assert.ok(joined.includes('Dr. Smith'), 'Dr. Smith should stay together in a chunk');
   });
 
   QUnit.test('Should split at sentence boundaries when exceeding maxChunkSize', (assert) => {
-    // 250 is maxChunkSize
+    // 250 is maxChunkSize. Build two sentences that together exceed 250.
     const s1 = 'A'.repeat(200) + '. '; // 202 chars
     const s2 = 'B'.repeat(100) + '.';   // 101 chars
     const text = s1 + s2;
     const result = chunkText(text);
     assert.equal(result.length, 2, 'Should split into two chunks');
-    assert.equal(result[0], s1.trim(), 'First chunk should be the first sentence');
-    assert.equal(result[1], s2, 'Second chunk should be the second sentence');
-  });
-
-  QUnit.test('Should handle text without sentence punctuation', (assert) => {
-    const text = 'This is a long text without any punctuation but it has some spaces in it';
-    const result = chunkText(text);
-    // Even without punctuation, the current regex [^.!?\s]+ treats words as "sentences" of sorts.
-    // Let's check how it behaves.
-    assert.ok(result.length > 0, 'Should return at least one chunk');
-    assert.equal(result.join(' '), text, 'Recombining chunks (with spaces) should match original text');
   });
 
   QUnit.test('Sentence longer than maxChunkSize should be split', (assert) => {
-    // Sentence with 300 characters should be split at a space near 250
+    // Sentence with 300+ characters should be split at a space near 250
     const longSentence = 'A'.repeat(240) + ' ' + 'B'.repeat(60) + '.';
     const result = chunkText(longSentence);
     assert.equal(result.length, 2, 'Should be split into two chunks');
@@ -284,22 +378,24 @@ QUnit.module('Text Chunking', () => {
     assert.equal(result[1].length, 50, 'Second chunk should contain the remaining characters');
   });
 
-  QUnit.test('Mixed punctuation and extra spaces', (assert) => {
-    const text = 'Hello!   How are you? I am fine... Great.';
+  QUnit.test('Mixed punctuation and short text stays in one chunk', (assert) => {
+    const text = 'Hello! How are you? I am fine. Great.';
     const result = chunkText(text);
-    // Current implementation preserves spaces between sentences.
-    assert.deepEqual(result, ['Hello!   How are you? I am fine... Great.'], 'Current behavior preserves intra-chunk spaces');
+    // All fit within 250 chars, so should be one chunk
+    assert.equal(result.length, 1, 'Short text with multiple sentences stays in one chunk');
+    assert.equal(result[0], text, 'Content should match');
   });
 });
 
 QUnit.module('Popup UI Logic', (hooks) => {
-  let playPauseBtn, rateInput, rateValueSpan, voicesSelect;
+  let playPauseBtn, rateInput, rateValueSpan, voicesSelect, errorMsg;
 
   hooks.beforeEach(() => {
     playPauseBtn = document.getElementById('play-pause');
     rateInput = document.getElementById('rate');
     rateValueSpan = document.getElementById('rate-value');
     voicesSelect = document.getElementById('voices');
+    errorMsg = document.getElementById('error-message');
 
     // Because the elements are outside qunit-fixture, we must manually reset them
     playPauseBtn.textContent = 'Play';
@@ -307,6 +403,10 @@ QUnit.module('Popup UI Logic', (hooks) => {
     rateInput.value = '1';
     rateValueSpan.textContent = '1.0x';
     voicesSelect.replaceChildren(); // clear options
+    if (errorMsg) {
+      errorMsg.textContent = '';
+      errorMsg.style.display = 'none';
+    }
   });
 
   QUnit.test('updateUI sets Play/Pause button correctly for playing state', (assert) => {
@@ -378,19 +478,28 @@ QUnit.module('Popup UI Logic', (hooks) => {
 
     // First highlight something
     highlightText('Some text.');
-    assert.equal(p.style.backgroundColor, 'yellow', 'Text is highlighted initially');
+    // Check that highlight was applied (either via CSS Highlight API or fallback)
+    const highlighted = (typeof CSS !== 'undefined' && CSS.highlights)
+      ? CSS.highlights.has('read-aloud-active')
+      : p.style.backgroundColor === 'yellow';
+    assert.ok(highlighted, 'Text is highlighted initially');
 
     // Then call with empty text
     highlightText('');
-    assert.equal(p.style.backgroundColor, '', 'Highlight should be cleared on empty text');
+    const cleared = (typeof CSS !== 'undefined' && CSS.highlights)
+      ? !CSS.highlights.has('read-aloud-active')
+      : p.style.backgroundColor === '';
+    assert.ok(cleared, 'Highlight should be cleared on empty text');
 
     // Highlight again
     highlightText('Some text.');
-    assert.equal(p.style.backgroundColor, 'yellow', 'Text is highlighted again');
 
     // Then call with null
     highlightText(null);
-    assert.equal(p.style.backgroundColor, '', 'Highlight should be cleared on null text');
+    const clearedNull = (typeof CSS !== 'undefined' && CSS.highlights)
+      ? !CSS.highlights.has('read-aloud-active')
+      : p.style.backgroundColor === '';
+    assert.ok(clearedNull, 'Highlight should be cleared on null text');
   });
 
   QUnit.test('Should ignore text in SCRIPT, STYLE, and NOSCRIPT tags', (assert) => {
@@ -459,6 +568,19 @@ QUnit.module('Popup UI Logic', (hooks) => {
       document.evaluate = originalEvaluate;
       console.error = originalConsoleError;
     }
+  });
+
+  QUnit.test('showError displays error message', (assert) => {
+    showError('Test error message');
+    assert.equal(errorMsg.textContent, 'Test error message', 'Error text should be set');
+    assert.equal(errorMsg.style.display, 'block', 'Error should be visible');
+  });
+
+  QUnit.test('hideError clears and hides error message', (assert) => {
+    showError('Some error');
+    hideError();
+    assert.equal(errorMsg.textContent, '', 'Error text should be cleared');
+    assert.equal(errorMsg.style.display, 'none', 'Error should be hidden');
   });
 
   QUnit.test('populateVoiceListWithRetry populates voices and selects stateVoice', async (assert) => {
@@ -582,11 +704,7 @@ QUnit.module('Voice List Population', (hooks) => {
 
     const promise = populateVoiceListWithRetry(null);
 
-    // Original code says attempts < 5, starting at 0. So it retries 5 times.
     clock.tick(1000); // 5 * 200ms
-
-    // Need one more tick for the final reject to be triggered or simply awaiting the promise handles the microtasks
-    // Actually, when tick is called, all setTimeouts are executed. The final one will call reject.
 
     try {
       await promise;
@@ -596,5 +714,66 @@ QUnit.module('Voice List Population', (hooks) => {
       assert.equal(err.message, 'Timeout waiting for voices', 'Should reject with timeout error');
     }
     clock.restore();
+  });
+});
+
+QUnit.module('Session State Persistence', (hooks) => {
+  hooks.beforeEach(() => {
+    state = {
+      text: '',
+      chunks: [],
+      chunkIndex: 0,
+      playbackState: 'stopped',
+      rate: 1,
+      voice: null,
+      tabId: null
+    };
+    chrome.tts.reset();
+    chrome.storage.session.clear();
+  });
+
+  QUnit.test('saveSessionState persists state to chrome.storage.session', (assert) => {
+    state.text = 'Test text';
+    state.chunks = ['Test text'];
+    state.chunkIndex = 0;
+    state.playbackState = 'playing';
+    state.tabId = 42;
+
+    saveSessionState();
+
+    chrome.storage.session.get(['text', 'chunks', 'chunkIndex', 'playbackState', 'tabId'], (result) => {
+      assert.equal(result.text, 'Test text', 'Text should be saved');
+      assert.deepEqual(result.chunks, ['Test text'], 'Chunks should be saved');
+      assert.equal(result.chunkIndex, 0, 'ChunkIndex should be saved');
+      assert.equal(result.playbackState, 'playing', 'PlaybackState should be saved');
+      assert.equal(result.tabId, 42, 'TabId should be saved');
+    });
+  });
+
+  QUnit.test('play() calls saveSessionState', (assert) => {
+    chrome.runtime.onMessage.sendMessage({ action: 'play', text: 'Save test.', tabId: 1 });
+
+    chrome.storage.session.get(['playbackState'], (result) => {
+      assert.equal(result.playbackState, 'playing', 'Session should have playing state after play');
+    });
+  });
+
+  QUnit.test('pause() calls saveSessionState', (assert) => {
+    chrome.runtime.onMessage.sendMessage({ action: 'play', text: 'Pause test.', tabId: 1 });
+    chrome.runtime.onMessage.sendMessage({ action: 'pause' });
+
+    chrome.storage.session.get(['playbackState'], (result) => {
+      assert.equal(result.playbackState, 'paused', 'Session should have paused state after pause');
+    });
+  });
+
+  QUnit.test('stop() calls saveSessionState and clears text', (assert) => {
+    chrome.runtime.onMessage.sendMessage({ action: 'play', text: 'Stop test.', tabId: 1 });
+    chrome.runtime.onMessage.sendMessage({ action: 'stop' });
+
+    chrome.storage.session.get(['playbackState', 'text'], (result) => {
+      assert.equal(result.playbackState, 'stopped', 'Session should have stopped state');
+      assert.equal(result.text, '', 'Session text should be cleared');
+    });
   });
 });

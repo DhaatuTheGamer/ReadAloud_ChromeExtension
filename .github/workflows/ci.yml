@@ -53,9 +53,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build extension package
+        id: package
         run: |
           mkdir -p dist
-          zip -r dist/read-aloud-extension.zip \
+          VERSION=$(jq -r .version manifest.json)
+          ZIP_NAME="read-aloud-extension-v${VERSION}.zip"
+
+          zip -r "dist/${ZIP_NAME}" \
             manifest.json \
             icons/ \
             popup/ \
@@ -63,12 +67,14 @@ jobs:
             LICENSE \
             README.md
 
+          echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Verify package contents
-        run: unzip -l dist/read-aloud-extension.zip
+        run: unzip -l "dist/${{ steps.package.outputs.zip_name }}"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: read-aloud-extension
-          path: dist/read-aloud-extension.zip
+          name: ${{ steps.package.outputs.zip_name }}
+          path: dist/${{ steps.package.outputs.zip_name }}
           retention-days: 30
