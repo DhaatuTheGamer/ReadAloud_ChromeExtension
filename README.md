@@ -36,7 +36,7 @@ Long articles, research papers, and blog posts are everywhere — but not everyo
 **Key design decisions:**
 - **Zero dependencies at runtime** — no frameworks, no external libraries, no API keys. Just vanilla JavaScript and the Chrome Extensions API.
 - **Manifest V3** — built on Chrome's latest extension platform for better security and performance.
-- **Sentence-level chunking** — text is split at sentence boundaries (not arbitrary character counts) for natural phrasing and accurate highlighting.
+- **Language-aware segmentation** — text is split using the `Intl.Segmenter` API for accurate sentence boundaries, correctly handling abbreviations like "Dr.", "U.S.A.", and "e.g."
 
 ---
 
@@ -49,9 +49,14 @@ Long articles, research papers, and blog posts are everywhere — but not everyo
 | ⚡ **Adjustable Speed** | Control reading speed from 0.5× to 2.0× with a debounced slider. |
 | 🔍 **Smart Extraction** | Automatically detects the main article content (`<article>`, `<main>`, `[role="main"]`, etc.) and strips away navigation, headers, footers, and scripts. |
 | ✂️ **Selection Support** | Select any text on the page and click Play to read only your selection. |
-| 🔦 **Live Highlighting** | The sentence currently being spoken is highlighted in yellow and auto-scrolled into view. |
-| ⌨️ **Keyboard Shortcut** | Toggle play/pause globally with **Alt+Shift+P** (customizable in `chrome://extensions/shortcuts`). |
+| 🔦 **Live Highlighting** | The sentence currently being spoken is highlighted using the [CSS Custom Highlight API](https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API) — no DOM mutation. Falls back gracefully on older browsers. |
+| ⌨️ **Keyboard Shortcuts** | Toggle play/pause (**Alt+Shift+P**), skip forward (**Alt+Shift+Right**), skip backward (**Alt+Shift+Left**). |
 | 🔄 **Settings Persistence** | Your preferred voice and speed are saved via `chrome.storage.sync` across sessions. |
+| 🧠 **Smart Segmentation** | Uses `Intl.Segmenter` for language-aware sentence splitting — handles "Dr.", "U.S.A.", "e.g." correctly. |
+| 💾 **Service Worker Survival** | Playback state is backed up to `chrome.storage.session` — survives MV3 service worker restarts. |
+| 🌙 **Dark Mode** | Popup UI automatically adapts to your OS dark/light mode preference. |
+| ⚠️ **Error Feedback** | Shows a clear message when the extension can't access a restricted page (e.g., `chrome://` URLs). |
+| ✈️ **Offline Capable** | Works completely offline — no internet connection required. |
 
 ---
 
@@ -62,8 +67,10 @@ Long articles, research papers, and blog posts are everywhere — but not everyo
 | **Runtime** | Vanilla JavaScript (ES2022) | Extension logic — no framework overhead |
 | **Platform** | Chrome Extensions API (Manifest V3) | Permissions, service worker, content scripts |
 | **TTS Engine** | `chrome.tts` | Browser-native Text-to-Speech — offline and private |
-| **Storage** | `chrome.storage.sync` | Persist user preferences across devices |
-| **UI** | HTML + CSS | Minimal popup interface |
+| **NLP** | `Intl.Segmenter` | Language-aware sentence splitting (built into Chrome) |
+| **Highlighting** | CSS Custom Highlight API | Non-destructive text highlighting without DOM mutation |
+| **Storage** | `chrome.storage.sync` + `session` | Persist preferences (sync) and playback state (session) |
+| **UI** | HTML + CSS (with dark mode) | Minimal popup interface with OS theme detection |
 | **Testing** | QUnit + Sinon + Playwright | Unit tests with browser-level Chrome API mocks |
 | **Linting** | ESLint v9 (flat config) | Code quality enforcement |
 | **CI/CD** | GitHub Actions | Automated lint → test → build pipeline |
@@ -121,7 +128,9 @@ npx playwright install chromium
 | **Stop** button | Stop reading and reset to the beginning |
 | **Speed slider** | Adjust reading speed (0.5×–2.0×) |
 | **Voice dropdown** | Switch between available TTS voices |
-| **Alt+Shift+P** | Global keyboard shortcut to toggle play/pause |
+| **Alt+Shift+P** | Toggle play/pause |
+| **Alt+Shift+Right** | Skip to the next sentence |
+| **Alt+Shift+Left** | Skip to the previous sentence |
 
 ### Reading Selected Text
 
@@ -155,7 +164,7 @@ ReadAloud_ChromeExtension/
 ├── test/
 │   ├── mocks.js                # Chrome API mock implementations
 │   ├── test.html               # QUnit test runner HTML
-│   ├── test.js                 # Core test suite (45 tests)
+│   ├── test.js                 # Core test suite (59 tests)
 │   └── test_utils.js           # Tests for utility functions & debounce
 ├── .gitignore
 ├── CONTRIBUTING.md
@@ -170,7 +179,7 @@ ReadAloud_ChromeExtension/
 
 ## Testing
 
-The project includes a comprehensive QUnit test suite covering playback logic, text chunking, article extraction, popup UI, voice list population, debounce behavior, and utility functions.
+The project includes a comprehensive QUnit test suite covering playback logic, text chunking, article extraction, popup UI, voice list population, skip commands, session state persistence, error UI, debounce behavior, and utility functions.
 
 ### Run Tests
 
@@ -193,14 +202,16 @@ npm run lint
 
 | Module | Coverage |
 |--------|----------|
-| **Playback Logic** | Play, pause, stop, resume, keyboard shortcuts, restart-on-settings-change |
-| **Text Chunking** | Empty input, short text, sentence boundaries, long sentences, mixed punctuation |
+| **Playback Logic** | Play, pause, stop, resume, keyboard shortcuts, restart-on-settings-change, playbackEnded broadcast |
+| **Skip Commands** | Forward/backward navigation, bounds checking, paused → playing transition, keyboard dispatch |
+| **Text Chunking** | Empty input, short text, Intl.Segmenter abbreviations, sentence boundaries, long sentences |
 | **Article Extraction** | Selection priority, selector fallback chain, unwanted element removal |
-| **Popup UI** | Button states, rate slider, voice dropdown, empty state handling |
+| **Popup UI** | Button states, rate slider, voice dropdown, error UI (showError/hideError), highlighting |
 | **Voice List** | Immediate load, retry logic, timeout/max-attempts, default selection |
+| **Session Persistence** | Save/restore state, play/pause/stop trigger persistence |
 | **Utilities** | `injectAndGetText` happy path + error handling, `debounce` timing & context |
 
-> **45 tests · 109 assertions · 0 failures**
+> **59 tests · 141 assertions · 0 failures**
 
 ---
 
@@ -218,7 +229,7 @@ Lint (ESLint) → Test (QUnit via Playwright) → Build (zip + upload artifact)
 | **Test** | QUnit + Playwright | Runs the full test suite in a headless Chromium browser |
 | **Build** | `zip` + `upload-artifact` | Packages the extension into a ready-to-install `.zip` file |
 
-The build artifact (`read-aloud-extension.zip`) is downloadable from the Actions tab for 30 days.
+The build artifact is dynamically versioned (e.g., `read-aloud-extension-v4.0.0.zip`) and downloadable from the Actions tab for 30 days.
 
 ---
 
@@ -236,10 +247,10 @@ Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) fo
 
 ## Roadmap
 
+- [x] ~~**Error Feedback** — Display a message when no readable text is found~~ *(v4.0.0)*
+- [x] ~~**Navigation Controls** — Add next/previous buttons to skip by sentence or paragraph~~ *(v4.0.0)*
 - [ ] **Granular Speed Input** — Allow users to type a specific speed value
 - [ ] **Internationalization (i18n)** — Translate the popup UI into multiple languages
-- [ ] **Error Feedback** — Display a message when no readable text is found
-- [ ] **Navigation Controls** — Add next/previous buttons to skip by sentence or paragraph
 - [ ] **Progress Indicator** — Show reading progress (e.g., "Sentence 5 of 42")
 
 ---

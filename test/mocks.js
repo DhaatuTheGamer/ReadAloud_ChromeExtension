@@ -3,6 +3,12 @@
 // A simple in-memory storage for chrome.storage.sync
 const storage = {};
 
+// A simple in-memory storage for chrome.storage.session
+const sessionStorage = {};
+
+// Track messages sent via chrome.runtime.sendMessage for assertions
+const sentMessages = [];
+
 // Mock implementation of the chrome APIs used by background.js
 window.chrome = {
   runtime: {
@@ -24,11 +30,10 @@ window.chrome = {
         });
       }
     },
-    sendMessage: (message, callback) => {
-      // Basic mock for chrome.runtime.sendMessage to avoid errors in popup.js
-      if (callback) {
-        callback({ playbackState: 'stopped', rate: 1, voice: null });
-      }
+    sendMessage: (message, _callback) => {
+      sentMessages.push(message);
+      // Basic mock — catch called as Promise.catch in stop()
+      return Promise.resolve();
     },
     lastError: null
   },
@@ -74,6 +79,33 @@ window.chrome = {
           for (const key in storage) {
               delete storage[key];
           }
+      }
+    },
+    session: {
+      get: (keys, callback) => {
+        const result = {};
+        if (Array.isArray(keys)) {
+          keys.forEach(key => {
+            if (sessionStorage[key] !== undefined) {
+              result[key] = sessionStorage[key];
+            }
+          });
+        } else {
+          for (const key in keys) {
+            if (sessionStorage[key] !== undefined) {
+              result[key] = sessionStorage[key];
+            }
+          }
+        }
+        callback(result);
+      },
+      set: (items, _callback) => {
+        Object.assign(sessionStorage, items);
+      },
+      clear: () => {
+        for (const key in sessionStorage) {
+          delete sessionStorage[key];
+        }
       }
     }
   },
@@ -147,3 +179,11 @@ window.chrome = {
       }
   }
 };
+
+// Helper to reset sentMessages
+window.resetSentMessages = () => {
+  sentMessages.length = 0;
+};
+
+// Expose for test assertions
+window.sentMessages = sentMessages;

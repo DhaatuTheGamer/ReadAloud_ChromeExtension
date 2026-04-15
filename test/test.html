@@ -10,6 +10,7 @@
   <div id="qunit-fixture"></div>
 
   <div id="popup-elements" style="display: none;">
+    <div id="error-message" class="error-message" style="display:none;"></div>
     <button id="play-pause">Play</button>
     <button id="stop">Stop</button>
     <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1">
@@ -23,6 +24,8 @@
   <script>
     // Mock importScripts for background.js since we're in a browser environment
     window.importScripts = function() {};
+    // Mock the injection guard so content.js globals are defined
+    window._readAloudInjected = false;
   </script>
   <script src="../scripts/content.js"></script>
   <script src="../scripts/utils.js"></script>

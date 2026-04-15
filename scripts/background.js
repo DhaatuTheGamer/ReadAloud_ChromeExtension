@@ -12,12 +12,53 @@ let state = {
 };
 
 // --- Initialization ---
+
+// Restore persisted settings on install
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.sync.get(['rate', 'voice'], (result) => {
     if (result.rate) state.rate = result.rate;
     if (result.voice) state.voice = result.voice;
   });
 });
+
+// Restore dynamic playback state from session storage on service worker startup.
+// chrome.storage.session survives SW restarts but is cleared when the browser closes.
+function restoreSessionState() {
+  if (chrome.storage.session) {
+    chrome.storage.session.get(['text', 'chunks', 'chunkIndex', 'playbackState', 'tabId'], (result) => {
+      if (result && result.text) {
+        state.text = result.text;
+        state.chunks = result.chunks || [];
+        state.chunkIndex = result.chunkIndex || 0;
+        state.tabId = result.tabId || null;
+        // If it was playing before SW died, mark as paused so user can resume
+        if (result.playbackState === 'playing') {
+          state.playbackState = 'paused';
+        } else {
+          state.playbackState = result.playbackState || 'stopped';
+        }
+      }
+    });
+  }
+}
+
+restoreSessionState();
+
+/**
+ * Persists the dynamic playback state to chrome.storage.session so it survives
+ * service worker termination (MV3 workers can be killed after ~30s of inactivity).
+ */
+function saveSessionState() {
+  if (chrome.storage.session) {
+    chrome.storage.session.set({
+      text: state.text,
+      chunks: state.chunks,
+      chunkIndex: state.chunkIndex,
+      playbackState: state.playbackState,
+      tabId: state.tabId
+    });
+  }
+}
 
 // --- Core Logic ---
 
@@ -43,6 +84,23 @@ function splitLongSentence(sentence, maxChunkSize) {
 }
 
 /**
+ * Splits text into sentences using the Intl.Segmenter API for language-aware
+ * segmentation. This correctly handles abbreviations like "Dr.", "U.S.A.", etc.
+ * Falls back to a regex if Intl.Segmenter is unavailable.
+ * @param {string} text The full text to segment into sentences.
+ * @returns {string[]} An array of sentence strings.
+ */
+function segmentSentences(text) {
+  if (typeof Intl !== 'undefined' && typeof Intl.Segmenter !== 'undefined') {
+    const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+    const segments = segmenter.segment(text);
+    return Array.from(segments, s => s.segment);
+  }
+  // Fallback: naive regex (for environments without Intl.Segmenter)
+  return text.match(/[^.!?]+[.!?]*|[^.!?\s]+/g) || [];
+}
+
+/**
  * Splits text into chunks, prioritizing sentence boundaries for more natural speech.
  * Falls back to a max character limit if a sentence is too long.
  * @param {string} text The full text to be chunked.
@@ -54,8 +112,7 @@ function chunkText(text) {
 
   if (!text) return chunks;
 
-  // Regex to split text into sentences, preserving punctuation.
-  const sentences = text.match(/[^.!?]+[.!?]*|[^.!?\s]+/g) || [];
+  const sentences = segmentSentences(text);
 
   let currentChunkParts = [];
   let currentChunkLength = 0;
@@ -116,6 +173,7 @@ function speak() {
         }
         if (event.type === 'end' && state.playbackState === 'playing') {
           state.chunkIndex++;
+          saveSessionState();
           speak();
         } else if (event.type !== 'end') {
           stop();
@@ -149,6 +207,7 @@ function play(text) {
   }
 
   state.playbackState = 'playing';
+  saveSessionState();
 
   // Stop any currently ongoing speech before starting anew.
   chrome.tts.stop();
@@ -158,6 +217,7 @@ function play(text) {
 function resume() {
   if (state.playbackState === 'paused') {
     state.playbackState = 'playing';
+    saveSessionState();
     chrome.tts.resume();
   }
 }
@@ -165,17 +225,26 @@ function resume() {
 function pause() {
   if (state.playbackState === 'playing') {
     state.playbackState = 'paused';
+    saveSessionState();
     chrome.tts.pause();
   }
 }
 
 function stop() {
   chrome.tts.stop();
+  const wasStopped = state.playbackState !== 'stopped';
   state.playbackState = 'stopped';
   state.chunkIndex = 0;
   state.chunks = [];
-  // Keep tabId for potential restart via shortcut, but clear text.
-  state.text = ''; 
+  state.text = '';
+  saveSessionState();
+
+  // Notify the popup (if open) that playback has ended so it can update its UI
+  if (wasStopped) {
+    chrome.runtime.sendMessage({ action: 'playbackEnded' }).catch(() => {
+      // Popup is not open — ignore the error
+    });
+  }
 }
 
 /**
@@ -187,6 +256,36 @@ function restartPlaybackIfPlaying() {
         chrome.tts.stop();
         speak();
     }
+}
+
+/**
+ * Skips forward by one sentence/chunk.
+ */
+function skipForward() {
+  if (state.playbackState === 'playing' || state.playbackState === 'paused') {
+    if (state.chunkIndex < state.chunks.length - 1) {
+      state.chunkIndex++;
+      saveSessionState();
+      chrome.tts.stop();
+      state.playbackState = 'playing';
+      speak();
+    }
+  }
+}
+
+/**
+ * Skips backward by one sentence/chunk.
+ */
+function skipBackward() {
+  if (state.playbackState === 'playing' || state.playbackState === 'paused') {
+    if (state.chunkIndex > 0) {
+      state.chunkIndex--;
+      saveSessionState();
+      chrome.tts.stop();
+      state.playbackState = 'playing';
+      speak();
+    }
+  }
 }
 
 // --- Event Listeners ---
@@ -226,26 +325,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 chrome.commands.onCommand.addListener((command) => {
-  if (command === 'toggle-play-pause') {
-    // Only act if we have a tabId to work with.
-    if (!state.tabId) return;
+  switch (command) {
+    case 'toggle-play-pause':
+      // Only act if we have a tabId to work with.
+      if (!state.tabId) return;
 
-    switch (state.playbackState) {
-      case 'playing':
-        pause();
-        break;
-      case 'paused':
-        resume();
-        break;
-      case 'stopped':
-        // Try to get text from the last active tab and play.
-        injectAndGetText(state.tabId, (text) => {
-            if (text) {
-                play(text);
-            }
-        });
-        break;
-    }
+      switch (state.playbackState) {
+        case 'playing':
+          pause();
+          break;
+        case 'paused':
+          resume();
+          break;
+        case 'stopped':
+          // Try to get text from the last active tab and play.
+          injectAndGetText(state.tabId, (text) => {
+              if (text) {
+                  play(text);
+              }
+          });
+          break;
+      }
+      break;
+    case 'skip-forward':
+      skipForward();
+      break;
+    case 'skip-backward':
+      skipBackward();
+      break;
   }
 });
 

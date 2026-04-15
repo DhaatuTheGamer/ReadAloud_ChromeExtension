@@ -1,10 +1,10 @@
-
 {
   "manifest_version": 3,
   "name": "Read Aloud",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "description": "A text-to-speech extension that reads web page content aloud with persistent playback.",
   "author": "Dhaatrik Chowdhury",
+  "offline_enabled": true,
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -28,6 +28,18 @@
         "default": "Alt+Shift+P"
       },
       "description": "Toggle play/pause"
+    },
+    "skip-forward": {
+      "suggested_key": {
+        "default": "Alt+Shift+Right"
+      },
+      "description": "Skip to next sentence"
+    },
+    "skip-backward": {
+      "suggested_key": {
+        "default": "Alt+Shift+Left"
+      },
+      "description": "Skip to previous sentence"
     }
   }
 }

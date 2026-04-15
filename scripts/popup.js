@@ -3,6 +3,28 @@ const stopButton = document.getElementById('stop');
 const rateInput = document.getElementById('rate');
 const rateValueSpan = document.getElementById('rate-value'); // For displaying the speed value
 const voicesSelect = document.getElementById('voices');
+const errorMessage = document.getElementById('error-message');
+
+/**
+ * Shows an error message in the popup.
+ * @param {string} message The error message to display.
+ */
+function showError(message) {
+  if (errorMessage) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+  }
+}
+
+/**
+ * Hides the error message in the popup.
+ */
+function hideError() {
+  if (errorMessage) {
+    errorMessage.textContent = '';
+    errorMessage.style.display = 'none';
+  }
+}
 
 /**
  * Updates the entire popup UI based on the current playback state.
@@ -98,11 +120,14 @@ if (typeof window !== 'undefined') {
     window.updateUI = updateUI;
     window.populateVoiceListWithRetry = populateVoiceListWithRetry;
     window.debounce = debounce;
+    window.showError = showError;
+    window.hideError = hideError;
 }
 
 // --- Event Listeners ---
 
 playPauseButton.addEventListener('click', () => {
+    hideError();
     chrome.runtime.sendMessage({ action: 'getState' }, (state) => {
         if (state.playbackState === 'playing') {
             chrome.runtime.sendMessage({ action: 'pause' }, updateUI);
@@ -114,6 +139,8 @@ playPauseButton.addEventListener('click', () => {
                 injectAndGetText(tabId, (text) => {
                     if (text) {
                         chrome.runtime.sendMessage({ action: 'play', text: text, tabId: tabId }, updateUI);
+                    } else {
+                        showError('Cannot read this page. The browser restricts access to this type of page.');
                     }
                 });
             });
@@ -122,6 +149,7 @@ playPauseButton.addEventListener('click', () => {
 });
 
 stopButton.addEventListener('click', () => {
+  hideError();
   chrome.runtime.sendMessage({ action: 'stop' }, (newState) => {
     updateUI(newState);
   });
@@ -143,6 +171,18 @@ rateInput.addEventListener('change', debounce((e) => {
 voicesSelect.addEventListener('change', debounce((e) => {
   chrome.runtime.sendMessage({ action: 'setVoice', voice: e.target.value });
 }, 300));
+
+// --- Playback State Sync ---
+// Listen for playbackEnded messages from the background script so the popup
+// can update its UI when reading finishes while the popup is open.
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((request) => {
+    if (request.action === 'playbackEnded') {
+      playPauseButton.textContent = 'Play';
+      playPauseButton.classList.remove('playing');
+    }
+  });
+}
 
 // --- Initial Popup Setup ---
 document.addEventListener('DOMContentLoaded', () => {
