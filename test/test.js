@@ -65,7 +65,6 @@ QUnit.module('Playback Logic', (hooks) => {
 
     // 1. Play
     chrome.runtime.onMessage.sendMessage({ action: 'play', text: 'This is a test sentence.', tabId: 1 });
-    const originalSpokenText = chrome.tts.lastSpokenText;
     chrome.tts.lastSpokenText = null; // Reset for the next check
 
     // 2. Pause
@@ -202,7 +201,6 @@ QUnit.module('Article Text Extraction', (hooks) => {
 
   QUnit.test('Should fallback to body if no specific selectors match', (assert) => {
     window.getSelection = () => ({ toString: () => '' });
-    const fixture = document.getElementById('qunit-fixture');
 
     // Create a div that does not match any selector except 'body'
     // But since the loop checks body last, we'll mock querySelector to only return body
@@ -464,13 +462,13 @@ QUnit.module('Popup UI Logic', (hooks) => {
   });
 
   QUnit.test('populateVoiceListWithRetry populates voices and selects stateVoice', async (assert) => {
-    // The default mock returns ['Voice A', 'Voice B']
-    await populateVoiceListWithRetry('Voice B');
+    // The default mock returns ['Mock Voice 1', 'Mock Voice 2']
+    await populateVoiceListWithRetry('Mock Voice 2');
 
     assert.equal(voicesSelect.options.length, 2, 'Should have 2 voice options');
-    assert.equal(voicesSelect.options[0].value, 'Voice A', 'First option is Voice A');
-    assert.equal(voicesSelect.options[1].value, 'Voice B', 'Second option is Voice B');
-    assert.equal(voicesSelect.value, 'Voice B', 'stateVoice (Voice B) should be selected');
+    assert.equal(voicesSelect.options[0].value, 'Mock Voice 1', 'First option is Mock Voice 1');
+    assert.equal(voicesSelect.options[1].value, 'Mock Voice 2', 'Second option is Mock Voice 2');
+    assert.equal(voicesSelect.value, 'Mock Voice 2', 'stateVoice (Mock Voice 2) should be selected');
   });
 
   QUnit.test('populateVoiceListWithRetry retries on empty response', async (assert) => {

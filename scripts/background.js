@@ -1,7 +1,6 @@
-// --- START OF FULLY MODIFIED FILE background.js ---
-
 importScripts('utils.js');
 
+// eslint-disable-next-line prefer-const -- intentionally `let` for test reassignment
 let state = {
   text: '',
   chunks: [],
